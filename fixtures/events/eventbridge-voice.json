@@ -1,0 +1,23 @@
+{
+  "version": "0",
+  "id": "9c1d4a6e-0000-4000-8000-000000000001",
+  "detail-type": "Object Created",
+  "source": "aws.s3",
+  "account": "123456789012",
+  "time": "2026-09-02T00:17:12Z",
+  "region": "ap-southeast-2",
+  "resources": ["arn:aws:s3:::example-connect-bucket"],
+  "detail": {
+    "version": "0",
+    "bucket": { "name": "example-connect-bucket" },
+    "object": {
+      "key": "connect/example-instance/Analysis/Voice/Redacted/2026/09/02/3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b_analysis_redacted_2026-09-02T00:17:10Z.json",
+      "size": 5891,
+      "etag": "0123456789abcdef0123456789abcdef",
+      "sequencer": "0064F1A2B3C4D5E6F7"
+    },
+    "request-id": "EXAMPLE123456789",
+    "requester": "connect.amazonaws.com",
+    "reason": "PutObject"
+  }
+}

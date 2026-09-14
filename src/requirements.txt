@@ -1,0 +1,1 @@
+# Runtime dependencies: none beyond boto3, which the Lambda Python 3.12 runtime provides.

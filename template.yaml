@@ -1,0 +1,257 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  ciopulse Connect quickstart. Forwards redacted Amazon Connect conversation
+  analytics transcripts from your S3 bucket to the ciopulse send-a-copy
+  endpoint. Creates one Lambda function, its IAM role, two EventBridge rules,
+  a log group and one alarm. Reads redacted transcripts only; never reads audio.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: Required }
+        Parameters:
+          - TranscriptBucketName
+          - ConnectInstanceArn
+          - ApiKeySecretArn
+          - AgentId
+          - AgentVersion
+      - Label: { default: Delivery }
+        Parameters:
+          - CiopulseEndpoint
+          - ExcludeQueueNames
+          - OutcomeAttributeName
+          - SkipMultiPartyContacts
+      - Label: { default: Bucket layout (defaults fit the documented Connect layout) }
+        Parameters:
+          - VoiceKeyPattern
+          - ChatKeyPattern
+          - AgentParticipantRoles
+      - Label: { default: Operations }
+        Parameters:
+          - AlarmSnsTopicArn
+          - LogRetentionDays
+
+Parameters:
+  TranscriptBucketName:
+    Type: String
+    Description: >-
+      Name of the S3 bucket where Amazon Connect writes conversational
+      analytics output (Connect console > instance > Data storage).
+    AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+    ConstraintDescription: must be a valid S3 bucket name
+
+  ConnectInstanceArn:
+    Type: String
+    Description: >-
+      ARN of your Amazon Connect instance. Grants the forwarder read-only
+      access to contact metadata (timestamps, queue, the outcome attribute).
+    AllowedPattern: '^arn:aws[a-z-]*:connect:[a-z0-9-]+:\d{12}:instance/[a-f0-9-]{36}$'
+    ConstraintDescription: must look like arn:aws:connect:<region>:<account>:instance/<id>
+
+  ApiKeySecretArn:
+    Type: String
+    Description: >-
+      ARN of the Secrets Manager secret containing your ciopulse API key.
+      Plain string, or JSON with an "api_key" field. The key itself is never
+      a template parameter.
+    AllowedPattern: '^arn:aws[a-z-]*:secretsmanager:[a-z0-9-]+:\d{12}:secret:.+$'
+    ConstraintDescription: must be a Secrets Manager secret ARN
+
+  AgentId:
+    Type: String
+    Description: Stable identifier for your AI agent as it should appear in ciopulse (e.g. service-desk-agent).
+    MinLength: 1
+    MaxLength: 100
+    AllowedPattern: '^[A-Za-z0-9._-]+$'
+
+  AgentVersion:
+    Type: String
+    Description: Release string of the agent (e.g. 1.4.2). Bump it on each release; ciopulse scorecards are per version.
+    MinLength: 1
+    MaxLength: 50
+
+  CiopulseEndpoint:
+    Type: String
+    Description: The send-a-copy endpoint. Change only for testing against a mock receiver.
+    Default: https://app.cio-pulse.com/api/v5/ai-agent/transcripts
+    AllowedPattern: '^https?://.+$'
+
+  ExcludeQueueNames:
+    Type: String
+    Description: >-
+      Comma-separated Connect queue names whose contacts are sent with
+      exclude=true (counted by ciopulse, never stored or analysed). Blank = none.
+    Default: ''
+
+  OutcomeAttributeName:
+    Type: String
+    Description: >-
+      Name of a contact attribute your flow sets to contained, escalated or
+      abandoned. Blank = outcome is sent as "unknown".
+    Default: ''
+
+  SkipMultiPartyContacts:
+    Type: String
+    Description: Skip contacts with more than two participants (Connect analyses those worst). Default false.
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+
+  VoiceKeyPattern:
+    Type: String
+    Description: >-
+      Glob for redacted voice analysis objects. Drives the EventBridge rule,
+      the IAM policy and the handler check together. Must contain "Redacted/".
+    Default: '*Analysis/Voice/Redacted/*.json'
+    AllowedPattern: '^[^\s]*Redacted/[^\s]*\.json$'
+    ConstraintDescription: must contain "Redacted/" and end in .json
+
+  ChatKeyPattern:
+    Type: String
+    Description: >-
+      Glob for redacted chat analysis objects. AWS does not document the chat
+      prefix; verify against one real chat contact.
+    Default: '*Analysis/Chat/Redacted/*.json'
+    AllowedPattern: '^[^\s]*Redacted/[^\s]*\.json$'
+    ConstraintDescription: must contain "Redacted/" and end in .json
+
+  AgentParticipantRoles:
+    Type: String
+    Description: Comma-separated participant roles that represent the AI agent. CUSTOMER always maps to the user.
+    Default: 'AGENT,BOT,CUSTOM_BOT'
+
+  AlarmSnsTopicArn:
+    Type: String
+    Description: Optional SNS topic ARN to notify when deliveries fail. Blank = alarm with no action.
+    Default: ''
+
+  LogRetentionDays:
+    Type: Number
+    Description: Retention for the forwarder's log group.
+    Default: 30
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653]
+
+Conditions:
+  HasAlarmTopic: !Not [!Equals [!Ref AlarmSnsTopicArn, '']]
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    Timeout: 60
+    MemorySize: 256
+
+Resources:
+  ForwarderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Forwards redacted Amazon Connect transcripts to ciopulse (send-a-copy v0.2).
+      CodeUri: src/
+      Handler: handler.lambda_handler
+      Environment:
+        Variables:
+          CIOPULSE_ENDPOINT: !Ref CiopulseEndpoint
+          API_KEY_SECRET_ARN: !Ref ApiKeySecretArn
+          CONNECT_INSTANCE_ARN: !Ref ConnectInstanceArn
+          AGENT_ID: !Ref AgentId
+          AGENT_VERSION: !Ref AgentVersion
+          VOICE_KEY_PATTERN: !Ref VoiceKeyPattern
+          CHAT_KEY_PATTERN: !Ref ChatKeyPattern
+          EXCLUDE_QUEUE_NAMES: !Ref ExcludeQueueNames
+          OUTCOME_ATTRIBUTE_NAME: !Ref OutcomeAttributeName
+          SKIP_MULTI_PARTY_CONTACTS: !Ref SkipMultiPartyContacts
+          AGENT_PARTICIPANT_ROLES: !Ref AgentParticipantRoles
+          METRIC_NAMESPACE: ciopulse/ConnectForwarder
+          STACK_NAME: !Ref AWS::StackName
+      Policies:
+        - Statement:
+            - Sid: ReadRedactedTranscriptsOnly
+              Effect: Allow
+              Action: s3:GetObject
+              Resource:
+                - !Sub 'arn:aws:s3:::${TranscriptBucketName}/${VoiceKeyPattern}'
+                - !Sub 'arn:aws:s3:::${TranscriptBucketName}/${ChatKeyPattern}'
+            - Sid: ReadCiopulseApiKey
+              Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref ApiKeySecretArn
+            - Sid: ReadContactMetadata
+              Effect: Allow
+              Action:
+                - connect:DescribeContact
+                - connect:GetContactAttributes
+              Resource: !Sub '${ConnectInstanceArn}/contact/*'
+            - Sid: ResolveQueueNames
+              Effect: Allow
+              Action: connect:DescribeQueue
+              Resource: !Sub '${ConnectInstanceArn}/queue/*'
+      Events:
+        VoiceRedactedObjectCreated:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: [aws.s3]
+              detail-type: [Object Created]
+              detail:
+                bucket:
+                  name: [!Ref TranscriptBucketName]
+                object:
+                  key:
+                    - wildcard: !Ref VoiceKeyPattern
+            RetryPolicy:
+              MaximumRetryAttempts: 3
+              MaximumEventAgeInSeconds: 3600
+        ChatRedactedObjectCreated:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: [aws.s3]
+              detail-type: [Object Created]
+              detail:
+                bucket:
+                  name: [!Ref TranscriptBucketName]
+                object:
+                  key:
+                    - wildcard: !Ref ChatKeyPattern
+            RetryPolicy:
+              MaximumRetryAttempts: 3
+              MaximumEventAgeInSeconds: 3600
+
+  ForwarderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ForwarderFunction}'
+      RetentionInDays: !Ref LogRetentionDays
+
+  FailedDeliveriesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: A transcript could not be delivered to ciopulse after retries (or a parse error occurred). Check the forwarder log group.
+      Namespace: ciopulse/ConnectForwarder
+      MetricName: Failed
+      Dimensions:
+        - Name: Stack
+          Value: !Ref AWS::StackName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmTopic, [!Ref AlarmSnsTopicArn], !Ref AWS::NoValue]
+
+Outputs:
+  ForwarderFunctionName:
+    Description: The forwarder Lambda function.
+    Value: !Ref ForwarderFunction
+  ForwarderLogGroup:
+    Description: Where the per-contact JSON log lines and metrics land.
+    Value: !Ref ForwarderLogGroup
+  EnableEventBridgeCommand:
+    Description: >-
+      Run once so the bucket emits Object Created events. WARNING: replaces the
+      bucket's notification configuration; use the S3 console toggle instead if
+      other notifications already exist on the bucket.
+    Value: !Sub >-
+      aws s3api put-bucket-notification-configuration --bucket ${TranscriptBucketName}
+      --notification-configuration '{"EventBridgeConfiguration": {}}'

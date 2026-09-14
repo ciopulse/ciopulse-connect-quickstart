@@ -1,0 +1,20 @@
+{
+  "Records": [
+    {
+      "eventVersion": "2.1",
+      "eventSource": "aws:s3",
+      "awsRegion": "ap-southeast-2",
+      "eventTime": "2026-09-02T00:17:12.000Z",
+      "eventName": "ObjectCreated:Put",
+      "s3": {
+        "s3SchemaVersion": "1.0",
+        "bucket": { "name": "example-connect-bucket", "arn": "arn:aws:s3:::example-connect-bucket" },
+        "object": {
+          "key": "connect/example-instance/Analysis/Voice/Redacted/2026/09/02/3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b_analysis_redacted_2026-09-02T00%3A17%3A10Z.json",
+          "size": 5891,
+          "eTag": "0123456789abcdef0123456789abcdef"
+        }
+      }
+    }
+  ]
+}
