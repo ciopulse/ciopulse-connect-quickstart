@@ -4,16 +4,19 @@ Shape (redacted file): Transcript[] items with absolute timestamps, a Type
 (MESSAGE or EVENT) and a ContentType. Only text/plain and text/markdown items
 are conversation turns; joins, leaves and attachments are skipped. Character
 offsets (used by Connect for highlights) are irrelevant to the contract and
-ignored. ConversationCharacteristics adds ResponseTime and SentimentShift.
+ignored. ConversationCharacteristics adds ResponseTime and SentimentShift, keyed
+by participant role. Flow and bot messages arrive with ParticipantRole SYSTEM
+(verified on a live instance, Sep 2026), which is why SYSTEM is an agent role
+by default.
 """
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Iterable
 
-from .common import (DEFAULT_AGENT_ROLES, ROLE_AGENT, ParsedTranscript, agent_value,
+from .common import (DEFAULT_AGENT_ROLES, ROLE_AGENT, ROLE_USER, ParsedTranscript, agent_value,
                      as_int, as_number, clean_text, iso, parse_iso, participants_map,
-                     periods, role_for_item, strip_private, summary_from, user_value)
+                     periods, role_for_item, role_of, strip_private, summary_from, user_value)
 
 TEXT_TYPES = {"text/plain", "text/markdown"}
 
@@ -71,39 +74,73 @@ def parse_chat(doc: dict, started_at: datetime,
     )
 
 
+def _by_role(block, key_new="DetailsByParticipantRole", key_old="DetailsByParticipant"):
+    """Connect nests per-participant data under DetailsByParticipantRole (current) or DetailsByParticipant / the map itself (older)."""
+    if not isinstance(block, dict):
+        return {}
+    for k in (key_new, key_old):
+        if isinstance(block.get(k), dict):
+            return block[k]
+    return block
+
+
 def _signals(cc: dict, parts: dict, agent_roles: Iterable[str]) -> dict:
     out: dict = {}
     sentiment = cc.get("Sentiment") or {}
-    overall_map = sentiment.get("OverallSentiment") or {}
 
-    overall = as_number(user_value(overall_map, parts, agent_roles))
+    # Overall customer sentiment: DetailsByParticipantRole.CUSTOMER (current shape), a flat CUSTOMER key
+    # (older shape), then the per-interaction split (WithAgent preferred, WithoutAgent for bot-only chats).
+    overall_map = sentiment.get("OverallSentiment") or {}
+    overall = as_number(user_value(_by_role(overall_map), parts, agent_roles))
     if overall is None:
-        # Chat files may split the score by interaction; prefer the with-agent value.
-        with_agent = (overall_map.get("DetailsByInteraction") or {}).get("WithAgent")
-        overall = as_number(user_value(with_agent, parts, agent_roles))
+        dbi = overall_map.get("DetailsByInteraction") or {}
+        per_interaction = user_value(_by_role(dbi), parts, agent_roles)
+        if isinstance(per_interaction, dict):        # current: ...DetailsByParticipantRole.CUSTOMER.{WithAgent,WithoutAgent}
+            overall = as_number(per_interaction.get("WithAgent"))
+            if overall is None:
+                overall = as_number(per_interaction.get("WithoutAgent"))
+        if overall is None:                          # older: ...DetailsByInteraction.{WithAgent,WithoutAgent}.CUSTOMER
+            for split in ("WithAgent", "WithoutAgent"):
+                overall = as_number(user_value(dbi.get(split), parts, agent_roles))
+                if overall is not None:
+                    break
     if overall is not None:
         out["overall_sentiment_user"] = overall
 
+    # By period: QUARTER buckets where present (voice-style); otherwise the customer's progressive score
+    # after each of their message groups, which is what chat analysis actually emits.
     quarters = (sentiment.get("SentimentByPeriod") or {}).get("QUARTER")
-    by_period = periods(user_value(quarters, parts, agent_roles))
+    by_period = periods(user_value(_by_role(quarters or {}), parts, agent_roles)) if quarters else None
+    if not by_period:
+        groups = sentiment.get("DetailsByTranscriptItemGroup")
+        if isinstance(groups, list):
+            scores = [as_number(g.get("ProgressiveScore")) for g in groups if isinstance(g, dict)
+                      and role_of(None, g.get("ParticipantRole"), parts, agent_roles) == ROLE_USER]
+            scores = [x for x in scores if x is not None]
+            if scores:
+                by_period = [{"period": i + 1, "score": x} for i, x in enumerate(scores)]
     if by_period:
         out["sentiment_by_period"] = by_period
 
-    shift = user_value(sentiment.get("SentimentShift"), parts, agent_roles)
+    shift = user_value(_by_role(sentiment.get("SentimentShift") or {}), parts, agent_roles)
     if isinstance(shift, dict):
         begin, end = as_number(shift.get("BeginScore")), as_number(shift.get("EndScore"))
         if begin is not None and end is not None:
             out["sentiment_shift_user"] = {"begin": begin, "end": end}
 
+    # Agent response time: Average.ValueMillis (current) or AverageMillis (older); greeting time as fallback.
     rt = cc.get("ResponseTime") or {}
-    agent_rt = agent_value(rt.get("DetailsByParticipant"), parts, agent_roles) or {}
+    agent_rt = agent_value(_by_role(rt), parts, agent_roles)
     avg = None
-    for key in ("AverageMillis", "AverageResponseTimeMillis", "Average"):
-        avg = as_int(agent_rt.get(key)) if isinstance(agent_rt, dict) else None
-        if avg is not None:
-            break
+    if isinstance(agent_rt, dict):
+        avg = as_int((agent_rt.get("Average") or {}).get("ValueMillis")) if isinstance(agent_rt.get("Average"), dict) else None
+        if avg is None:
+            for key in ("AverageMillis", "AverageResponseTimeMillis", "Average"):
+                avg = as_int(agent_rt.get(key))
+                if avg is not None:
+                    break
     if avg is None:
-        avg = as_int(rt.get("AgentGreetingTimeMillis"))
+        avg = as_int(rt.get("AgentGreetingTimeMillis")) or as_int(rt.get("AutomatedInteractionGreetingTimeMillis"))
     if avg is not None:
         out["response_time_ms"] = avg
 

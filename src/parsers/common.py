@@ -14,7 +14,7 @@ ROLE_USER = "user"
 ROLE_AGENT = "agent"
 ROLE_SYSTEM = "system"
 
-DEFAULT_AGENT_ROLES = frozenset({"AGENT", "BOT", "CUSTOM_BOT"})
+DEFAULT_AGENT_ROLES = frozenset({"AGENT", "BOT", "CUSTOM_BOT", "SYSTEM"})
 SUMMARY_MAX_CHARS = 2000
 
 _WS = re.compile(r"\s+")

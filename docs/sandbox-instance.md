@@ -40,17 +40,26 @@ Set the flow as the entry flow for chat (*Test chat* page picks it up) and for a
 
 ## 5. Make a test contact
 
-**Chat, no phone number needed.** Admin console → *Dashboard* → *Test chat*. Open the agent side (CCP) in a second tab, accept the chat, exchange a few messages, end it. This is the quickest way to see a file land, and it verifies the chat prefix the forwarder assumes.
+**Chat through the API, no user or phone number needed (quickest).** Create a bot-only inbound flow: in the flow designer, entry → *Set recording and analytics behavior* (as in step 4) → a few *Send message* and *Get customer input* blocks → *Disconnect*. Publish it, note its ID from the URL, then run:
+
+```bash
+pip install boto3 websockets
+python3 tools/sandbox_chat.py <instance-id> <flow-id>
+```
+
+The script joins as the customer, prints each message as the flow sends it, replies twice, and exits when the flow disconnects. On a live instance the flow's messages arrive with participant role `SYSTEM`, which the forwarder maps to `agent` by default.
+
+**Chat with a human agent.** Admin console → *Dashboard* → *Test chat*. Open the agent side (CCP) in a second tab, accept the chat, exchange a few messages, end it. Needs a Connect user; create one under *Users* after signing in with the emergency access link.
 
 **Voice** needs a claimed number: *Channels* → *Phone numbers* → *Claim a number*. In Australia, DID numbers require business identity documents and take days to provision; toll-free is quicker. Call it from your mobile, answer in the CCP, talk for thirty seconds, hang up.
 
-Analytics output appears one to three minutes after the contact ends:
+Analytics output appears about four minutes after the contact ends. Chat analysis lands at the **bucket root**, not under the storage prefix:
 
 ```bash
-aws s3 ls s3://<bucket>/connect/ciopulse-sandbox/ --recursive | grep Analysis
+aws s3 ls s3://<bucket>/Analysis/ --recursive
 ```
 
-The forwarder's `VoiceKeyPattern` and `ChatKeyPattern` defaults expect `…/Analysis/Voice/Redacted/…` and `…/Analysis/Chat/Redacted/…`. If the chat files land somewhere else, that is the undocumented prefix from RUN-LOG item 2; set `ChatKeyPattern` to match and note it.
+Expect `Analysis/Chat/Redacted/YYYY/MM/DD/<contactId>_analysis_redacted_<ts>.json`. The forwarder's default key patterns match it. Voice output has not yet been observed on a live instance; the documented path is `…/Analysis/Voice/Redacted/…`.
 
 ## 6. Deploy the forwarder against it
 

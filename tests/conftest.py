@@ -154,7 +154,7 @@ def env(monkeypatch, mock_ingest):
         "EXCLUDE_QUEUE_NAMES": "",
         "OUTCOME_ATTRIBUTE_NAME": "",
         "SKIP_MULTI_PARTY_CONTACTS": "false",
-        "AGENT_PARTICIPANT_ROLES": "AGENT,BOT,CUSTOM_BOT",
+        "AGENT_PARTICIPANT_ROLES": "AGENT,BOT,CUSTOM_BOT,SYSTEM",
         "STACK_NAME": "test",
     }
     for k, v in values.items():

@@ -74,10 +74,11 @@ def test_chat_end_to_end(aws, env, mock_ingest, monkeypatch):
     monkeypatch.setattr(handler, "post_with_retries",
                         lambda b, e, k: captured.setdefault("p", json.loads(b)) and real_post(b, e, k))
     r = handler.lambda_handler(eventbridge_event(CHAT_KEY))["results"][0]
-    assert r["status"] == "forwarded" and r["channel"] == "chat" and r["turns"] == 5
+    assert r["status"] == "forwarded" and r["channel"] == "chat" and r["turns"] == 4
     p = captured["p"]
     assert p["channel"] == "chat" and p["contract_version"] == "0.2"
-    assert p["platform_signals"]["response_time_ms"] == 6200
+    assert [x["role"] for x in p["turns"]] == ["agent", "agent", "user", "agent"]
+    assert p["platform_signals"]["response_time_ms"] == 706
     assert p["metadata"]["events_skipped"] == 2
     assert last_received(mock_ingest)["channel"] == "chat"
 

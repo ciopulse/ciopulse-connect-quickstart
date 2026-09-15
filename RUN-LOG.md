@@ -14,6 +14,22 @@ Everything below is either a decision that deserves a second look or a place whe
 | Deployment | none, per the brief |
 | Client-name and credential grep | **clean** on the whole tree; also enforced on every run by `tests/test_repo_hygiene.py` (the forbidden list is base64-encoded so it is not itself a hit) |
 
+## Live-instance verification, 15 September 2026
+
+A sandbox instance (`ciopulse-sandbox`, ap-southeast-2) was created with `tools/create-sandbox-instance.sh`, a bot-only inbound flow with analytics and RedactedOnly was added, and one chat was driven through the API. Findings, each of which closed or narrowed an item below:
+
+| Fact | Verified |
+|---|---|
+| Chat analysis lands at the **bucket root**: `Analysis/Chat/Redacted/YYYY/MM/DD/<contactId>_analysis_redacted_<ts>.json`, not under the chat-transcript storage prefix | ✅ item 2 closed for chat |
+| Raw chat transcript lands under the storage prefix: `connect/<alias>/ChatTranscripts/YYYY/MM/DD/<contactId>_<ts>.json` | ✅ |
+| Flow and bot messages carry `ParticipantRole: SYSTEM`; the `Participants` array lists CUSTOMER and SYSTEM | ✅ item 3 closed; default agent roles now include SYSTEM |
+| Analysis file appeared ~4 minutes after the chat ended | ✅ |
+| `ConversationCharacteristics` shape: sentiment, shift and response time nest under `DetailsByParticipantRole`; chat has `DetailsByTranscriptItemGroup[].ProgressiveScore` instead of `SentimentByPeriod`; no `TotalConversationDurationMillis`; `ContactSummary.SummaryItemsDetected[]` with no generated summary text; `ResponseTime.AutomatedInteractionGreetingTimeMillis` for a bot | ✅ item 6 closed for chat; parser updated, sanitised file is now `fixtures/contact-lens-chat-redacted.json` |
+| Redaction worked: an email address in the customer message was replaced and `Redaction.CharacterOffsets` recorded it | ✅ |
+| `redaction_option: RedactedOnly` set through the flow block's `AnalyticsRedactionResults` produced only the redacted file | ✅ |
+
+Still unverified: everything voice (no phone number claimed), the `AgentInfo`/escalation behaviour, and whether the forwarder's EventBridge rule fires on the root-level key (deploy pending the API-key secret).
+
 ## 1. Trigger: S3 events through EventBridge, not S3-to-Lambda notifications
 
 **What the code does.** Two EventBridge rules match `aws.s3` / `Object Created` events on the bucket with a `wildcard` key filter. This is the reliable `aws.s3` source, not the CloudTrail-backed `aws.contact-lens` source the dev notes warn against.
@@ -26,7 +42,7 @@ Everything below is either a decision that deserves a second look or a place whe
 
 **What the code does.** `ChatKeyPattern` defaults to `*Analysis/Chat/Redacted/*.json`. The same string drives the EventBridge wildcard, the IAM resource and the handler's own `fnmatch` check. Contact ID is taken from the file name (`<uuid>_…`) with a fallback to `CustomerMetadata.ContactId` inside the file.
 
-**Verify.** Run one chat through the instance and list `s3://<bucket>/connect/<alias>/Analysis/Chat/`. Confirm (a) the `Redacted/` segment exists for chat, (b) the file is `.json`, (c) the name starts with the contact ID. If the layout differs, only the parameter changes.
+**Verified 15 Sep 2026 (chat):** the file is at the bucket root, `Analysis/Chat/Redacted/YYYY/MM/DD/<contactId>_analysis_redacted_<ts>.json`. The default pattern matches it because `*` matches the empty prefix. Voice still to confirm.
 
 Also unverified: whether the voice file name is exactly `<contactId>_analysis_redacted_<ts>.json`. The tests use a stricter pattern for the negative case; the default pattern is deliberately loose.
 
@@ -36,7 +52,7 @@ Also unverified: whether the voice file name is exactly `<contactId>_analysis_re
 
 **The open question.** How a Connect AI agent (Q in Connect self-service) or a Lex bot appears in the Contact Lens transcript: as `AGENT`, `SYSTEM`, `CUSTOM_BOT`, or something else. AWS's May 2026 self-service evaluation feature implies bot turns are in the transcript, but the role label is not documented.
 
-**Verify.** Open one redacted file from a bot-handled contact and read `Participants[].ParticipantRole`. If the bot is `SYSTEM`, set `AgentParticipantRoles=AGENT,SYSTEM` and be aware that genuine system events (joins, leaves) are already filtered by `Type != MESSAGE` in chat.
+**Verified 15 Sep 2026:** flow (`MessageParticipant`) messages are `SYSTEM`. Default `AgentParticipantRoles` now includes `SYSTEM`; joins and leaves are `Type: EVENT` and filtered regardless. A Lex bot or Connect AI agent has not been tested and may use a different role.
 
 ## 4. Voice timestamps: what the millisecond offsets are relative to
 

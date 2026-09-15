@@ -117,8 +117,11 @@ Parameters:
 
   AgentParticipantRoles:
     Type: String
-    Description: Comma-separated participant roles that represent the AI agent. CUSTOMER always maps to the user.
-    Default: 'AGENT,BOT,CUSTOM_BOT'
+    Description: >-
+      Comma-separated participant roles that represent the AI agent. CUSTOMER
+      always maps to the user. Flow and bot messages carry SYSTEM, so it is
+      included by default; remove it if your SYSTEM messages are not the agent.
+    Default: 'AGENT,BOT,CUSTOM_BOT,SYSTEM'
 
   AlarmSnsTopicArn:
     Type: String

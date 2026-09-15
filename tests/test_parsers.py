@@ -64,32 +64,57 @@ def test_voice_escalation_detected_when_second_agent_participant_speaks():
     assert len(parsed.participant_ids) == 3
 
 
-def test_chat_skips_events_and_attachments():
+def test_chat_real_shape_turns_and_roles():
+    """Fixture is a sanitised file from a live instance: bot-only chat, bot messages carry SYSTEM."""
     parsed = parse_chat(load_fixture("contact-lens-chat-redacted.json"), CHAT_START)
+    assert [t["role"] for t in parsed.turns] == ["agent", "agent", "user", "agent"]
+    assert parsed.notes == {"events_skipped": 2, "non_text_items_skipped": 0}
+    assert parsed.turns[0]["ts"] == "2026-09-15T01:45:53.902+00:00"
+    assert parsed.duration_ms == 5139  # no TotalConversationDurationMillis in chat files; first->last message
+    assert len(parsed.participant_ids) == 2
+
+
+def test_chat_real_shape_platform_signals():
+    sig = parse_chat(load_fixture("contact-lens-chat-redacted.json"), CHAT_START).platform_signals
+    assert sig["overall_sentiment_user"] == -5                       # OverallSentiment.DetailsByParticipantRole.CUSTOMER
+    assert sig["sentiment_by_period"] == [{"period": 1, "score": -5}]  # DetailsByTranscriptItemGroup progressive score
+    assert sig["response_time_ms"] == 706                            # ResponseTime.DetailsByParticipantRole.SYSTEM.Average.ValueMillis
+    assert "sentiment_shift_user" not in sig                         # customer shift block is empty in the file
+    assert "summary" not in sig and "talk_time_ms" not in sig
+
+
+def test_chat_system_not_agent_when_operator_says_so():
+    parsed = parse_chat(load_fixture("contact-lens-chat-redacted.json"), CHAT_START, parse_agent_roles("AGENT,CUSTOM_BOT"))
+    assert [t["role"] for t in parsed.turns] == ["system", "system", "user", "system"]
+    # no agent-role participant, so response time falls back to the bot greeting time
+    assert parsed.platform_signals["response_time_ms"] == 1958
+
+
+def test_chat_synthetic_skips_events_and_attachments():
+    parsed = parse_chat(load_fixture("contact-lens-chat-synthetic.json"), CHAT_START)
     assert [t["role"] for t in parsed.turns] == ["user", "agent", "user", "agent", "user"]
     assert parsed.notes == {"events_skipped": 2, "non_text_items_skipped": 1}
-    assert parsed.turns[0]["ts"] == "2026-09-02T00:20:11.000+00:00"
     assert parsed.turns[3]["text"] == "Great. Anything else I can help with?"  # text/markdown kept
 
 
-def test_chat_platform_signals():
-    sig = parse_chat(load_fixture("contact-lens-chat-redacted.json"), CHAT_START).platform_signals
+def test_chat_synthetic_older_shapes_still_parse():
+    sig = parse_chat(load_fixture("contact-lens-chat-synthetic.json"), CHAT_START).platform_signals
     assert sig["overall_sentiment_user"] == 0.5
     assert sig["sentiment_shift_user"] == {"begin": -2.0, "end": 3.0}
     assert sig["response_time_ms"] == 6200
     assert [p["score"] for p in sig["sentiment_by_period"]] == [-2.0, -0.5, 1.0, 3.0]
-    assert "talk_time_ms" not in sig  # chat has no talk time; nothing invented
+    assert "talk_time_ms" not in sig
 
 
 def test_chat_sentiment_falls_back_to_with_agent_split():
-    doc = load_fixture("contact-lens-chat-redacted.json")
+    doc = load_fixture("contact-lens-chat-synthetic.json")
     doc["ConversationCharacteristics"]["Sentiment"]["OverallSentiment"] = {
         "DetailsByInteraction": {"WithAgent": {"CUSTOMER": -1.5}, "WithoutAgent": {"CUSTOMER": 2.0}}}
     assert parse_chat(doc, CHAT_START).platform_signals["overall_sentiment_user"] == -1.5
 
 
 def test_chat_duration_falls_back_to_first_and_last_turn():
-    doc = load_fixture("contact-lens-chat-redacted.json")
+    doc = load_fixture("contact-lens-chat-synthetic.json")
     del doc["ConversationCharacteristics"]["TotalConversationDurationMillis"]
     assert parse_chat(doc, CHAT_START).duration_ms == 163000
 
@@ -100,6 +125,7 @@ def test_role_mapping_rules():
     assert role_of("p1", None, parts, roles) == "user"
     assert role_of("p2", None, parts, roles) == "agent"
     assert role_of("p3", None, parts, roles) == "system"
+    assert role_of("p3", None, parts, parse_agent_roles("")) == "agent"  # default includes SYSTEM
     assert role_of("p4", None, parts, roles) == "agent"
     assert role_of("p5", None, parts, roles) == "system"
     assert role_of("CUSTOMER", None, {}, roles) == "user"       # voice ids double as roles
@@ -109,5 +135,5 @@ def test_role_mapping_rules():
 
 
 def test_parse_agent_roles_defaults_when_blank():
-    assert parse_agent_roles("") == frozenset({"AGENT", "BOT", "CUSTOM_BOT"})
+    assert parse_agent_roles("") == frozenset({"AGENT", "BOT", "CUSTOM_BOT", "SYSTEM"})
     assert parse_agent_roles(" agent , custom_bot ") == frozenset({"AGENT", "CUSTOM_BOT"})

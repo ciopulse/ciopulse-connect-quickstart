@@ -64,7 +64,7 @@ The guided deploy asks for these values. Five have no default and you must suppl
 | `ExcludeQueueNames` | | Comma-separated queue names whose contacts are sent with `exclude: true` (counted by ciopulse, never stored) |
 | `OutcomeAttributeName` | | A contact attribute your flow sets to `contained`, `escalated` or `abandoned`. Leave blank to send `unknown` |
 | `SkipMultiPartyContacts` | | `true` to skip contacts with more than two participants. Default `false` |
-| `AgentParticipantRoles` | | Participant roles mapped to the AI agent. Default `AGENT,BOT,CUSTOM_BOT` |
+| `AgentParticipantRoles` | | Participant roles mapped to the AI agent. Default `AGENT,BOT,CUSTOM_BOT,SYSTEM` (flow and bot messages carry `SYSTEM`) |
 | `AlarmSnsTopicArn` | | Optional SNS topic for the failed-delivery alarm |
 
 **One manual step after the stack is up.** The forwarder listens for S3 "Object Created" events through EventBridge, and an existing bucket does not emit those until you switch them on. In the S3 console open the bucket → *Properties* → *Amazon EventBridge* → **On**. Or, if the bucket has **no other** event notifications configured:
@@ -77,7 +77,7 @@ aws s3api put-bucket-notification-configuration \
 
 That CLI call replaces the bucket's whole notification configuration, so use the console toggle if other notifications already exist. The stack's `EnableEventBridgeCommand` output repeats the command with your bucket name filled in.
 
-Then make one test call or chat, wait for analytics to finish (typically one to three minutes after disconnect), and check the `Forwarded` metric or the Lambda log group. A `202` in the log means ciopulse accepted the transcript.
+Then make one test call or chat, wait for analytics to finish (about four minutes after disconnect on a live chat), and check the `Forwarded` metric or the Lambda log group. A `202` in the log means ciopulse accepted the transcript.
 
 ## 4. What gets sent, and what never leaves your account
 
@@ -87,7 +87,7 @@ Then make one test call or chat, wait for analytics to finish (typically one to 
 - `agent.id`, `agent.version`: the two template parameters.
 - `channel`: `voice` or `chat`, from the S3 path.
 - `started_at`, `ended_at`: from the contact record.
-- `turns[]`: the redacted transcript text with a role (`user`, `agent` or `system`) and a timestamp per turn. Consecutive voice segments from the same speaker are merged into one turn.
+- `turns[]`: the redacted transcript text with a role (`user`, `agent` or `system`) and a timestamp per turn. Messages your flow or bot sends arrive from Connect with role `SYSTEM` and are mapped to `agent` by default. Consecutive voice segments from the same speaker are merged into one turn.
 - `outcome`: `unknown`, unless you set `OutcomeAttributeName`.
 - `events[]`: an `escalation_to_human` event when a human agent was connected, or when a second agent-role participant appears in the transcript.
 - `platform_signals` (optional): numbers Connect already computed, forwarded as-is. Customer sentiment overall and by period, talk and non-talk time, interruption count, agent response time, and the generated contact summary. **ciopulse displays these as comparators next to its own reading. They are never used as scoring inputs.** The block is omitted entirely when analytics did not produce it.
@@ -179,9 +179,9 @@ The payload follows the **send-a-copy contract v0.2**: v0.1 plus `channel: "voic
 
 **Why S3 events via EventBridge, and not "Contact Lens events".** Amazon Connect publishes no "analysis complete" event. The EventBridge entries under the `aws.contact-lens` source are CloudTrail API-call records with best-effort delivery, and Contact Lens rules fire on category match, not completion. S3 object-created events (`aws.s3` source) are the reliable signal that a redacted analysis file exists. Using EventBridge rather than a direct S3-to-Lambda notification lets the stack attach to a bucket it does not own without touching the bucket's existing notification configuration.
 
-**Key patterns.** AWS documents the voice layout (`…/Analysis/Voice/Redacted/YYYY/MM/DD/<contactId>_analysis_redacted_<ts>.json`) but not the chat one. The defaults match `*Analysis/<Channel>/Redacted/*.json` anywhere in the bucket, which covers the documented `connect/<instance-alias>/…` prefix. The same pattern drives the EventBridge rule, the IAM resource and the handler's own check, so changing the parameter changes all three together. Verify the chat pattern against one real chat contact.
+**Key patterns.** AWS documents the voice layout (`…/Analysis/Voice/Redacted/YYYY/MM/DD/<contactId>_analysis_redacted_<ts>.json`) but not the chat one. On a live instance (September 2026) chat analysis landed at the **bucket root**, `Analysis/Chat/Redacted/YYYY/MM/DD/<contactId>_analysis_redacted_<ts>.json`, not under the storage prefix configured for chat transcripts. The default patterns `*Analysis/<Channel>/Redacted/*.json` match both the root and a `connect/<alias>/…` prefix, since `*` matches zero or more characters in EventBridge, IAM and the handler alike. The same string drives all three, so changing the parameter changes them together.
 
-**Participant roles.** Voice files label speakers `AGENT` and `CUSTOMER`. Chat files carry per-participant roles, which may include `SYSTEM` or `CUSTOM_BOT`. `CUSTOMER` maps to `user`; anything in `AgentParticipantRoles` maps to `agent`; everything else becomes `system`. If your bot shows up under a different role, add it to the parameter.
+**Participant roles.** Voice files label speakers `AGENT` and `CUSTOMER`. Chat files carry per-participant roles: on a live instance, every message sent by the contact flow or a bot arrived as `SYSTEM`, with a real human agent as `AGENT`. `CUSTOMER` maps to `user`; anything in `AgentParticipantRoles` maps to `agent`; everything else becomes `system`. If your flow sends system notices you do not want attributed to the agent, remove `SYSTEM` from the parameter.
 
 **Kinesis.** Connect's documented real-time path is a Kinesis Data Stream of analysis segments. It is not built here; `src/kinesis_stub.py` marks where it would attach. The S3 path is simpler, needs no stream, and post-call latency of a few minutes is fine for a survey-and-transcript join.
 
