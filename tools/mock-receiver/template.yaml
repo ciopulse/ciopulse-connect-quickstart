@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  ciopulse mock receiver as a Lambda function URL. Lets you prove the Connect
+  forwarder end to end inside your own account before pointing it at ciopulse.
+  Strict contract validation, metadata-only logging, no storage.
+
+Parameters:
+  MockApiKey:
+    Type: String
+    NoEcho: true
+    Description: Any string. Put the same value in the Secrets Manager secret the forwarder reads.
+    MinLength: 8
+
+Resources:
+  MockReceiverFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: ciopulse send-a-copy mock receiver (sandbox only)
+      CodeUri: .
+      Handler: app.handler
+      Runtime: python3.12
+      Architectures: [arm64]
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          MOCK_API_KEY: !Ref MockApiKey
+      FunctionUrlConfig:
+        AuthType: NONE
+
+  MockReceiverLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${MockReceiverFunction}'
+      RetentionInDays: 14
+
+Outputs:
+  Endpoint:
+    Description: Use this as the forwarder's CiopulseEndpoint parameter.
+    Value: !Sub '${MockReceiverFunctionUrl}api/v5/ai-agent/transcripts'
+  LogGroup:
+    Value: !Ref MockReceiverLogGroup

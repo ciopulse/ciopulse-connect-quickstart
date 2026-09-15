@@ -118,7 +118,7 @@ def aws(monkeypatch):
 
 
 def _load_mock_module():
-    spec = importlib.util.spec_from_file_location("mock_ingest", ROOT / "tools" / "mock_ingest.py")
+    spec = importlib.util.spec_from_file_location("mock_ingest", ROOT / "tools" / "mock-receiver" / "mock_ingest.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

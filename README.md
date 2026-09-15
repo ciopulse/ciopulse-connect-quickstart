@@ -145,7 +145,7 @@ Each processed object writes one JSON log line. Look at `status`, `reason` and `
 
 ## 7. Testing locally
 
-The repo includes ciopulse's strict mock receiver, `tools/mock_ingest.py`. A `202` from it means the payload really conforms to the contract; anything else comes back with field-level errors.
+The repo includes ciopulse's strict mock receiver, `tools/mock-receiver/mock_ingest.py`. A `202` from it means the payload really conforms to the contract; anything else comes back with field-level errors.
 
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
@@ -157,13 +157,22 @@ cfn-lint template.yaml
 To run the mock and post a fixture by hand:
 
 ```bash
-python3 tools/mock_ingest.py --key test           # terminal 1, listens on :8088
+python3 tools/mock-receiver/mock_ingest.py --key test           # terminal 1, listens on :8088
 sam build && sam local invoke ForwarderFunction \
   --event fixtures/events/eventbridge-voice.json \
   --env-vars fixtures/env.local.json               # terminal 2
 ```
 
 `sam local invoke` still needs real AWS credentials for S3, Secrets Manager and Connect, so for a credential-free run use the unit tests, which stub those clients and drive the handler end to end against the mock.
+
+**In-account end-to-end test.** `tools/mock-receiver/` is the same validator wrapped as a Lambda behind a function URL, so you can prove the whole path inside your account before pointing at ciopulse:
+
+```bash
+cd tools/mock-receiver
+sam deploy --guided --stack-name ciopulse-mock-receiver     # asks for any MockApiKey string
+```
+
+Put the same string in the forwarder's Secrets Manager secret, set `CiopulseEndpoint` to the stack's `Endpoint` output, run a test contact, and watch both log groups: the forwarder logs `Forwarded=1`, the mock logs `accepted` with the turn count. Switch `CiopulseEndpoint` and the secret to production afterwards.
 
 ## 8. Contract reference
 
