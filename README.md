@@ -77,7 +77,7 @@ aws s3api put-bucket-notification-configuration \
 
 That CLI call replaces the bucket's whole notification configuration, so use the console toggle if other notifications already exist. The stack's `EnableEventBridgeCommand` output repeats the command with your bucket name filled in.
 
-Then make one test call or chat, wait for analytics to finish (about four minutes after disconnect on a live chat), and check the `Forwarded` metric or the Lambda log group. A `202` in the log means ciopulse accepted the transcript.
+Then make one test call or chat and wait for analytics to finish. On a live chat the transcript reached the receiver about three minutes after the chat ended, and check the `Forwarded` metric or the Lambda log group. A `202` in the log means ciopulse accepted the transcript.
 
 ## 4. What gets sent, and what never leaves your account
 

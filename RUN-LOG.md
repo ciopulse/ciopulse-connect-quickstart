@@ -28,7 +28,9 @@ A sandbox instance (`ciopulse-sandbox`, ap-southeast-2) was created with `tools/
 | Redaction worked: an email address in the customer message was replaced and `Redaction.CharacterOffsets` recorded it | ✅ |
 | `redaction_option: RedactedOnly` set through the flow block's `AnalyticsRedactionResults` produced only the redacted file | ✅ |
 
-Still unverified: everything voice (no phone number claimed), the `AgentInfo`/escalation behaviour, and whether the forwarder's EventBridge rule fires on the root-level key (deploy pending the API-key secret).
+| Forwarder deployed with `sam deploy` (stack tags required by the account's SCP), pointed at the in-account mock receiver (`tools/mock-receiver/`). A second chat ended at 05:11:16Z; the analysis file landed, the EventBridge rule matched the root-level key with the default `*Analysis/Chat/Redacted/*.json` wildcard, and the forwarder posted within ~3 minutes of the chat ending: `202`, 5 turns, `platform_signals` present, 281 ms in the Lambda | ✅ item 1 closed for chat; end-to-end proven |
+
+Still unverified: everything voice (no phone number claimed) and the `AgentInfo`/escalation behaviour on a transferred contact.
 
 ## 1. Trigger: S3 events through EventBridge, not S3-to-Lambda notifications
 
