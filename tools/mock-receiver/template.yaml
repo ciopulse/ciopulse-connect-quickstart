@@ -38,6 +38,8 @@ Resources:
 Outputs:
   Endpoint:
     Description: Use this as the forwarder's CiopulseEndpoint parameter.
-    Value: !Sub '${MockReceiverFunctionUrl}api/v5/ai-agent/transcripts'
+    Value: !Sub
+      - '${Url}api/v5/ai-agent/transcripts'
+      - Url: !GetAtt MockReceiverFunctionUrl.FunctionUrl
   LogGroup:
     Value: !Ref MockReceiverLogGroup
