@@ -32,7 +32,7 @@ The survey lens is a Connect flow change, not code. Section 5 walks through it.
 
 | Requirement | Why | Where |
 |---|---|---|
-| **Conversational analytics enabled on the contact flow** | Transcripts only exist when the `Set recording and analytics behavior` block has *analytics* on. Recording alone produces audio, not text. | Flow designer, and the instance-level analytics setting |
+| **Conversational analytics enabled on the contact flow, and on the transfer flow** | Transcripts only exist when the `Set recording and analytics behavior` block has *analytics* on. Recording alone produces audio, not text. A contact transferred by an agent runs your *queue transfer* flow, so that flow needs the block too or the human leg is never analysed. | Flow designer, and the instance-level analytics setting |
 | **`redaction_option` = `RedactedOnly`** (recommended) or `RedactedAndOriginal` | The forwarder reads the `…/Redacted/` prefix and nothing else. With `RedactedOnly`, an unredacted transcript is never written anywhere. | `Set contact attributes` block, or a Lambda in the flow, before analytics starts |
 | **The analytics S3 bucket name** | The event rules and the IAM policy are scoped to it. | Connect console → your instance → Data storage → *Chat transcripts* / *Call recordings* |
 | **A ciopulse API key in Secrets Manager** | The Lambda reads the key at runtime. The template takes the secret's **ARN**, never the key. | `aws secretsmanager create-secret --name ciopulse/api-key --secret-string '<key>'` |

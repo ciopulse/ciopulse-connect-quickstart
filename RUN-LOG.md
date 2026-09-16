@@ -49,7 +49,17 @@ A sandbox instance (`ciopulse-sandbox`, ap-southeast-2) was created with `tools/
 | Connect defaults a chat with no language to `en-US`; a bot without an `en_US` locale makes the Lex block fail with no error message (flow log shows `GetUserInput … Results: Error`) | ✅ documented in `docs/sandbox-instance.md` |
 | Bot-flagged escalation (`$.Lex.SessionAttributes.escalate`) routed the chat to the queue; with no agent staffed it waited in queue | ✅ flow branch works |
 
-Still unverified: what the analysis file looks like when a bot chat is then **answered by a human** (one file with three participants, or two files), the same for voice with a bot leg before the human, and how a Connect-native AI agent (Amazon Q in Connect) is labelled, as opposed to a Lex bot.
+**Bot → human → agent transfer, verified 16 September 2026** (chat; a human answered the bot's escalation, then transferred the chat from the CCP via a queue quick connect):
+
+| Fact | Verified |
+|---|---|
+| The bot's escalation *within the flow* (transfer-to-queue block) keeps the **same** `ContactId`; the human's leg is appended to the same contact and the analysis file has three participants: CUSTOMER, SYSTEM (bot), AGENT (human) | ✅ one contact, one file, 13 turns forwarded under one `session_id` |
+| An **agent-initiated transfer** (CCP quick connect) mints a **new `ContactId`** with `InitiationMethod: TRANSFER`, `InitialContactId` and `PreviousContactId` pointing at the first contact; the first contact is disconnected at that moment. Each leg gets its own raw transcript file; the second leg's raw transcript carries `InitialContactId` too | ✅ |
+| The forwarder therefore sends one payload per leg, `session_id` = that leg's `ContactId`. It now adds `metadata.initial_contact_id` / `previous_contact_id` on transferred legs so the receiver can stitch them | ✅ code change in this commit |
+| **Design consequence for the survey:** the Disconnect flow runs on the *last* leg. Build the survey `tid` from `$.InitialContactId` (falls back to the contact's own id when there was no transfer) so one conversation yields one survey, joined to the first leg where the AI agent was | recorded here and in `docs/survey-flow.md` |
+| **No analysis file appeared for the transferred leg** (12 minutes; the first leg's arrived in 4.5). Most likely cause: a transferred contact runs the *queue transfer* flow, and the stock "Default queue transfer" flow has no *Set recording and analytics behavior* block, so analytics was never enabled on leg two. A second possible cause is that the customer sent no message in that leg. **Customer guidance either way: put the analytics block in the transfer flow as well as the inbound flow**, or the human leg of an escalated conversation is never analysed | ⚠️ recorded; retest with a patched transfer flow pending |
+
+Still unverified: the same for voice with a bot leg before the human, and how a Connect-native AI agent (Amazon Q in Connect) is labelled, as opposed to a Lex bot.
 
 ## 1. Trigger: S3 events through EventBridge, not S3-to-Lambda notifications
 

@@ -124,6 +124,36 @@ def test_outcome_attribute_and_escalation_event(aws, env, mock_ingest, monkeypat
     assert captured["p"]["turns"][0]["ts"] == "2026-09-02T00:14:58.490+00:00"
 
 
+def test_transferred_leg_carries_linkage_ids(aws, env, mock_ingest, monkeypatch):
+    """Connect mints a new ContactId per transfer leg; the payload keeps its own id as session_id and
+    carries the initial/previous ids in metadata so the receiver can stitch the legs."""
+    c = aws["connect"].contacts["3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b"]
+    c["InitiationMethod"] = "TRANSFER"
+    c["InitialContactId"] = "00000000-1111-2222-3333-444444444444"
+    c["PreviousContactId"] = "00000000-1111-2222-3333-444444444444"
+    captured = {}
+    real_post = handler.post_with_retries
+    monkeypatch.setattr(handler, "post_with_retries",
+                        lambda b, e, k: captured.setdefault("p", json.loads(b)) and real_post(b, e, k))
+    r = handler.lambda_handler(eventbridge_event(VOICE_KEY))["results"][0]
+    assert r["status"] == "forwarded"
+    p = captured["p"]
+    assert p["session_id"] == "3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b"
+    assert p["metadata"]["initial_contact_id"] == "00000000-1111-2222-3333-444444444444"
+    assert p["metadata"]["previous_contact_id"] == "00000000-1111-2222-3333-444444444444"
+    assert p["metadata"]["initiation_method"] == "TRANSFER"
+
+
+def test_first_leg_has_no_linkage_ids(aws, env, mock_ingest, monkeypatch):
+    captured = {}
+    real_post = handler.post_with_retries
+    monkeypatch.setattr(handler, "post_with_retries",
+                        lambda b, e, k: captured.setdefault("p", json.loads(b)) and real_post(b, e, k))
+    handler.lambda_handler(eventbridge_event(VOICE_KEY))
+    assert "initial_contact_id" not in captured["p"]["metadata"]
+    assert "previous_contact_id" not in captured["p"]["metadata"]
+
+
 def test_unknown_outcome_value_becomes_unknown(aws, env, mock_ingest, monkeypatch):
     monkeypatch.setenv("OUTCOME_ATTRIBUTE_NAME", "ciopulse_outcome")
     aws["connect"].attributes["3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b"] = {"ciopulse_outcome": "resolved-ish"}

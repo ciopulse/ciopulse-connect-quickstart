@@ -33,8 +33,10 @@ Add the block first, with one branch at **100%** going to the next step and the 
 - **Value:** your survey link with the contact ID inserted. Set the value type to *Dynamic* is **not** needed here: enter the URL as plain text and use the system attribute reference inside it:
 
   ```
-  https://<your ciopulse host>/survey?tid=$.ContactId&rgid=<group code>&agid=<agent id>
+  https://<your ciopulse host>/survey?tid=$.InitialContactId&rgid=<group code>&agid=<agent id>
   ```
+
+  Use `$.InitialContactId`, not `$.ContactId`. When an agent transfers the contact, Connect mints a new contact ID for the second leg and the Disconnect flow runs on that last leg. `InitialContactId` always points at the first leg, where the AI agent was, and equals the contact's own ID when there was no transfer. The forwarder sends each leg with its own ID as `session_id` and carries `initial_contact_id` in metadata, so ciopulse joins the survey to the whole conversation.
 
 Why an attribute rather than writing the URL straight into the message: AWS documents message templates as static text with dynamic content supplied through user-defined attributes. Writing the full URL into an attribute first is the pattern AWS confirms, and it also makes the link visible in the contact record for troubleshooting.
 

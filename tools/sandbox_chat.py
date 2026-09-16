@@ -4,6 +4,7 @@
     pip install boto3 websockets
     python3 tools/sandbox_chat.py <instance-id> <contact-flow-id> [region]
     SANDBOX_REPLIES='["first reply", "second reply"]' python3 tools/sandbox_chat.py ...   # custom script
+    SANDBOX_TIMEOUT=600 python3 tools/sandbox_chat.py ...   # keep the customer side open longer (agent tests)
 
 No Connect user or CCP is needed: the script is the customer, the flow is the
 bot. It joins over the websocket (which is what starts the flow), prints every
@@ -43,7 +44,7 @@ async def run(instance_id: str, flow_id: str, region: str) -> str:
 
     async with websockets.connect(conn["Websocket"]["Url"], max_size=2 ** 20) as ws:
         await ws.send(json.dumps({"topic": "aws/subscribe", "content": {"topics": ["aws/chat"]}}))
-        deadline = time.time() + 180
+        deadline = time.time() + int(os.environ.get("SANDBOX_TIMEOUT", "180"))
         while time.time() < deadline:
             try:
                 frame = json.loads(await asyncio.wait_for(ws.recv(), timeout=30))

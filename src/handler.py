@@ -162,6 +162,11 @@ def contact_metadata(contact_id: str, s: Settings) -> Optional[dict]:
         "queue_name": None,
         "agent_connected_at": (c.get("AgentInfo") or {}).get("ConnectedToAgentTimestamp"),
         "initiation_method": c.get("InitiationMethod"),
+        # Set when this contact was created by a transfer: Connect mints a new ContactId per leg and
+        # links back through these. The survey link should carry the *initial* id so one conversation
+        # joins one survey; the receiver can stitch the legs with these fields.
+        "initial_contact_id": c.get("InitialContactId"),
+        "previous_contact_id": c.get("PreviousContactId"),
         "attributes": {},
     }
     if meta["queue_id"]:
@@ -232,6 +237,10 @@ def build_payload(contact_id: str, channel: str, started_at: datetime, ended_at:
             metadata["queue"] = str(meta["queue_name"])[:200]
         if meta.get("initiation_method"):
             metadata["initiation_method"] = str(meta["initiation_method"])[:50]
+        if meta.get("initial_contact_id") and meta["initial_contact_id"] != contact_id:
+            metadata["initial_contact_id"] = meta["initial_contact_id"]
+        if meta.get("previous_contact_id"):
+            metadata["previous_contact_id"] = meta["previous_contact_id"]
     for k, v in parsed.notes.items():
         if v:
             metadata[k] = v
