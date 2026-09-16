@@ -61,6 +61,23 @@ aws s3 ls s3://<bucket>/Analysis/ --recursive
 
 Expect `Analysis/Chat/Redacted/YYYY/MM/DD/<contactId>_analysis_redacted_<ts>.json`. The forwarder's default key patterns match it. Voice output has not yet been observed on a live instance; the documented path is `…/Analysis/Voice/Redacted/…`.
 
+## 5a. Optional: a generative AI bot in the flow
+
+```bash
+cd tools/sandbox-bot
+sam deploy --guided --stack-name ciopulse-sandbox-bot      # ModelId defaults to Amazon Nova Lite
+```
+
+Then associate the alias with the instance and build a flow around it:
+
+```bash
+aws connect associate-bot --instance-id <id> --lex-v2-bot AliasArn=<BotAliasArn output>
+```
+
+Flow: *Set logging behavior* → *Set voice* (Olivia) → *Set recording and analytics behavior* (as above) → **Get customer input** with the Lex bot → *Check contact attributes* on `$.Lex.SessionAttributes.escalate` equals `true` → *Set working queue* + *Transfer to queue*; otherwise *Disconnect*. Route the `TalkToHuman` intent branch to the queue as well.
+
+Notes from a live instance: the bot needs an `en_US` locale as well as your own, because a chat with no language set defaults to `en-US` and the Lex block fails silently otherwise; Anthropic models need a one-time model agreement in the account, which some organisation policies block, hence the Nova default; and Lex bot versions are immutable, so a locale change needs a new version resource (see the comment in the template).
+
 ## 6. Deploy the forwarder against it
 
 ```bash

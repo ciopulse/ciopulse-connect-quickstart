@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  Sandbox AI bot for the ciopulse Connect quickstart: an Amazon Lex V2 bot whose
+  every turn is answered by Claude on Amazon Bedrock through a Lambda code hook.
+  Lets you exercise a real generative agent, and a bot-to-human transfer, on a
+  test Connect instance. Not for production use.
+
+Parameters:
+  ModelId:
+    Type: String
+    Description: >-
+      Bedrock model or inference-profile ID the bot answers with. The default,
+      Amazon Nova Lite, needs no Marketplace agreement. Anthropic models (e.g.
+      au.anthropic.claude-haiku-4-5-20251001-v1:0) need a one-time model
+      agreement in the account, which some organisations' policies block.
+    Default: apac.amazon.nova-lite-v1:0
+  BotName:
+    Type: String
+    Default: ciopulse-sandbox-bot
+    AllowedPattern: '^[a-zA-Z0-9_-]{1,100}$'
+
+Resources:
+  BotBrainFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: Lex code hook that answers each turn with Claude on Bedrock (sandbox bot).
+      CodeUri: .
+      Handler: app.handler
+      Runtime: python3.12
+      Architectures: [arm64]
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          MODEL_ID: !Ref ModelId
+      Policies:
+        - Statement:
+            - Sid: InvokeModel
+              Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource:
+                - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${ModelId}'
+                - 'arn:aws:bedrock:*::foundation-model/*'
+            - Sid: BedrockModelSubscription
+              # Bedrock checks these Marketplace permissions on the calling role the first time
+              # an Anthropic model is used in the account; without them Converse is denied.
+              Effect: Allow
+              Action:
+                - aws-marketplace:ViewSubscriptions
+                - aws-marketplace:Subscribe
+              Resource: '*'
+
+  BotBrainLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${BotBrainFunction}'
+      RetentionInDays: 14
+
+  LexRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lexv2.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: lex-runtime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: polly:SynthesizeSpeech
+                Resource: '*'
+
+  SandboxBot:
+    Type: AWS::Lex::Bot
+    Properties:
+      Name: !Ref BotName
+      Description: Generative IT service-desk bot (Claude on Bedrock via Lambda code hook). Sandbox only.
+      RoleArn: !GetAtt LexRole.Arn
+      DataPrivacy:
+        ChildDirected: false
+      IdleSessionTTLInSeconds: 300
+      AutoBuildBotLocales: true
+      BotLocales:
+        - LocaleId: en_AU
+          Description: English (Australia), voice Olivia
+          NluConfidenceThreshold: 0.40
+          VoiceSettings:
+            VoiceId: Olivia
+            Engine: neural
+          Intents:
+            - Name: TalkToHuman
+              Description: The caller explicitly asks for a person.
+              SampleUtterances:
+                - Utterance: talk to a person
+                - Utterance: I want to speak to a human
+                - Utterance: transfer me to an agent
+                - Utterance: get me a real person
+                - Utterance: human please
+                - Utterance: can I speak to someone
+              FulfillmentCodeHook:
+                Enabled: true
+            - Name: FallbackIntent
+              Description: Everything else goes to the model.
+              ParentIntentSignature: AMAZON.FallbackIntent
+              FulfillmentCodeHook:
+                Enabled: true
+        - LocaleId: en_US
+          Description: English (US), voice Joanna; covers contacts with no language set
+          NluConfidenceThreshold: 0.40
+          VoiceSettings:
+            VoiceId: Joanna
+            Engine: neural
+          Intents:
+            - Name: TalkToHuman
+              Description: The caller explicitly asks for a person.
+              SampleUtterances:
+                - Utterance: talk to a person
+                - Utterance: I want to speak to a human
+                - Utterance: transfer me to an agent
+                - Utterance: get me a real person
+                - Utterance: human please
+                - Utterance: can I speak to someone
+              FulfillmentCodeHook:
+                Enabled: true
+            - Name: FallbackIntent
+              Description: Everything else goes to the model.
+              ParentIntentSignature: AMAZON.FallbackIntent
+              FulfillmentCodeHook:
+                Enabled: true
+
+  # Logical ID carries a suffix: Lex versions are immutable, so a locale change needs a NEW version
+  # resource (bump the suffix), not an in-place update, which CloudFormation cannot perform.
+  SandboxBotVersionV2:
+    Type: AWS::Lex::BotVersion
+    Properties:
+      BotId: !Ref SandboxBot
+      Description: Built from DRAFT by CloudFormation.
+      BotVersionLocaleSpecification:
+        - LocaleId: en_AU
+          BotVersionLocaleDetails:
+            SourceBotVersion: DRAFT
+        - LocaleId: en_US
+          BotVersionLocaleDetails:
+            SourceBotVersion: DRAFT
+
+  SandboxBotAlias:
+    Type: AWS::Lex::BotAlias
+    Properties:
+      BotAliasName: live
+      BotId: !Ref SandboxBot
+      BotVersion: !GetAtt SandboxBotVersionV2.BotVersion
+      SentimentAnalysisSettings:
+        DetectSentiment: false
+      BotAliasLocaleSettings:
+        - LocaleId: en_AU
+          BotAliasLocaleSetting:
+            Enabled: true
+            CodeHookSpecification:
+              LambdaCodeHook:
+                CodeHookInterfaceVersion: '1.0'
+                LambdaArn: !GetAtt BotBrainFunction.Arn
+        - LocaleId: en_US
+          BotAliasLocaleSetting:
+            Enabled: true
+            CodeHookSpecification:
+              LambdaCodeHook:
+                CodeHookInterfaceVersion: '1.0'
+                LambdaArn: !GetAtt BotBrainFunction.Arn
+
+  LexInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BotBrainFunction
+      Action: lambda:InvokeFunction
+      Principal: lexv2.amazonaws.com
+      SourceArn: !GetAtt SandboxBotAlias.Arn
+
+Outputs:
+  BotAliasArn:
+    Description: Associate this with your Connect instance, then use it in a "Get customer input" (Lex) flow block.
+    Value: !GetAtt SandboxBotAlias.Arn
+  BotBrainLogGroup:
+    Value: !Ref BotBrainLogGroup

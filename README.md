@@ -174,6 +174,8 @@ sam deploy --guided --stack-name ciopulse-mock-receiver     # asks for any MockA
 
 Put the same string in the forwarder's Secrets Manager secret, set `CiopulseEndpoint` to the stack's `Endpoint` output, run a test contact, and watch both log groups: the forwarder logs `Forwarded=1`, the mock logs `accepted` with the turn count. Switch `CiopulseEndpoint` and the secret to production afterwards.
 
+**A real AI bot to test against.** `tools/sandbox-bot/` deploys an Amazon Lex V2 bot whose every turn is answered by a Bedrock model through a Lambda code hook (Amazon Nova Lite by default; any Bedrock model ID as a parameter). It asks the model to flag when the caller wants a person, and the accompanying flow in `docs/sandbox-instance.md` transfers to a queue on that flag, so you can exercise a bot-then-human contact end to end. Bot messages arrive in the transcript as `SYSTEM`.
+
 ## 8. Contract reference
 
 The payload follows the **send-a-copy contract v0.2**: v0.1 plus `channel: "voice"` and the optional `platform_signals` block. Field additions within v0.x are backwards-compatible.

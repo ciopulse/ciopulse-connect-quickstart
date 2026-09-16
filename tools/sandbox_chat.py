@@ -3,6 +3,7 @@
 
     pip install boto3 websockets
     python3 tools/sandbox_chat.py <instance-id> <contact-flow-id> [region]
+    SANDBOX_REPLIES='["first reply", "second reply"]' python3 tools/sandbox_chat.py ...   # custom script
 
 No Connect user or CCP is needed: the script is the customer, the flow is the
 bot. It joins over the websocket (which is what starts the flow), prints every
@@ -12,13 +13,14 @@ analytics bucket a few minutes later. Synthetic text only.
 """
 import asyncio
 import json
+import os
 import sys
 import time
 
 import boto3
 import websockets
 
-REPLIES = [
+REPLIES = json.loads(os.environ["SANDBOX_REPLIES"]) if os.environ.get("SANDBOX_REPLIES") else [
     "hi, I can't get onto the VPN, it keeps saying authentication failed and I've tried three times already. "
     "my email is sandbox.tester@example.com",
     "yep that worked, thanks a lot",
