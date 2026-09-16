@@ -41,7 +41,15 @@ A sandbox instance (`ciopulse-sandbox`, ap-southeast-2) was created with `tools/
 | `AgentInfo` present → `escalation_to_human` emitted, even though no bot preceded the human | ✅ item 5 narrowed: semantics documented in the README; a bot-then-transfer contact is still untested |
 | Analysis file appeared ~5 minutes after hang-up; the forwarder delivered 5 turns with signals, `202`, 2.7 s | ✅ end-to-end for voice |
 
-Still unverified: a contact that starts with a bot and is transferred to a human (how many analysis files, which participants), and a Lex or Connect AI-agent participant role in voice.
+**Generative bot, verified 16 September 2026** with `tools/sandbox-bot/` (Lex V2 + Bedrock code hook) in the flow:
+
+| Fact | Verified |
+|---|---|
+| A Lex V2 bot's messages arrive in the chat analysis file as `ParticipantRole: SYSTEM`, exactly like flow messages; `Participants` lists CUSTOMER and SYSTEM only. Bot-only chats (no human) are analysed and produce customer sentiment | ✅ item 3 closed for chat: SYSTEM is the right default agent role for Connect-native bots |
+| Connect defaults a chat with no language to `en-US`; a bot without an `en_US` locale makes the Lex block fail with no error message (flow log shows `GetUserInput … Results: Error`) | ✅ documented in `docs/sandbox-instance.md` |
+| Bot-flagged escalation (`$.Lex.SessionAttributes.escalate`) routed the chat to the queue; with no agent staffed it waited in queue | ✅ flow branch works |
+
+Still unverified: what the analysis file looks like when a bot chat is then **answered by a human** (one file with three participants, or two files), the same for voice with a bot leg before the human, and how a Connect-native AI agent (Amazon Q in Connect) is labelled, as opposed to a Lex bot.
 
 ## 1. Trigger: S3 events through EventBridge, not S3-to-Lambda notifications
 
