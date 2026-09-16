@@ -26,7 +26,7 @@ def test_voice_end_to_end_eventbridge(aws, env, mock_ingest, capsys):
     assert r["status"] == "forwarded", r
     assert r["http_status"] == 202 and r["attempts"] == 1
     assert r["contact_id"] == "3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b"
-    assert r["channel"] == "voice" and r["turns"] == 8
+    assert r["channel"] == "voice" and r["turns"] == 5
 
     rec = last_received(mock_ingest)
     assert rec["session_id"] == "3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b"
@@ -61,8 +61,10 @@ def test_voice_sends_contract_0_2(aws, env, mock_ingest, monkeypatch):
     assert p["ended_at"] == "2026-09-02T00:14:47.000+00:00"
     assert p["outcome"] == "unknown"
     assert "events" not in p
-    assert p["platform_signals"]["overall_sentiment_user"] == -0.5
+    assert p["platform_signals"]["overall_sentiment_user"] == -5
     assert p["metadata"]["queue"] == "General Enquiries"
+    assert p["metadata"]["offset_anchor"] == "contact_start"   # no AgentInfo on this fake contact
+    assert p["turns"][0]["ts"] == "2026-09-02T00:14:18.490+00:00"
     assert p["metadata"]["timestamps_estimated"] is False
     assert len(json.dumps(p["metadata"])) <= 2048
     assert captured["key"] == "test-key-123"
@@ -117,6 +119,9 @@ def test_outcome_attribute_and_escalation_event(aws, env, mock_ingest, monkeypat
     assert r["status"] == "forwarded"
     assert captured["p"]["outcome"] == "escalated"
     assert captured["p"]["events"] == [{"type": "escalation_to_human", "ts": "2026-09-02T00:14:40.000+00:00"}]
+    # with a human connected, voice offsets anchor on that moment, not on contact initiation
+    assert captured["p"]["metadata"]["offset_anchor"] == "agent_connected"
+    assert captured["p"]["turns"][0]["ts"] == "2026-09-02T00:14:58.490+00:00"
 
 
 def test_unknown_outcome_value_becomes_unknown(aws, env, mock_ingest, monkeypatch):
@@ -157,8 +162,8 @@ def test_contact_metadata_unavailable_estimates_timestamps(aws, env, mock_ingest
     assert r["status"] == "forwarded" and r["reason"] == "contact_metadata_unavailable"
     p = captured["p"]
     assert p["metadata"]["timestamps_estimated"] is True
-    # LastModified 00:17:10 minus 45 s of conversation
-    assert p["started_at"] == "2026-09-02T00:16:25.000+00:00"
+    # LastModified 00:17:10 minus 91.9 s of conversation
+    assert p["started_at"] == "2026-09-02T00:15:38.100+00:00"
     assert p["ended_at"] == "2026-09-02T00:17:10.000+00:00"
     assert "queue" not in p["metadata"]
 
@@ -215,7 +220,7 @@ def test_same_speaker_segments_merge_below_cap(aws, env, mock_ingest):
 def test_three_participant_contact_skipped_only_when_configured(aws, env, mock_ingest, monkeypatch):
     doc = load_fixture("contact-lens-voice-redacted.json")
     doc["Participants"].append({"ParticipantId": "AGENT-2", "ParticipantRole": "AGENT"})
-    doc["Transcript"].append({"ParticipantId": "AGENT-2", "Content": "Network team here.", "BeginOffsetMillis": 44000})
+    doc["Transcript"].append({"ParticipantId": "AGENT-2", "Content": "Network team here.", "BeginOffsetMillis": 95000})
     aws["s3"].put(VOICE_KEY, doc)
 
     r = handler.lambda_handler(eventbridge_event(VOICE_KEY))["results"][0]

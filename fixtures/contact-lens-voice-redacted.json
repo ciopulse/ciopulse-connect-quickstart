@@ -1,122 +1,281 @@
 {
-  "Version": "1.1.0",
   "AccountId": "123456789012",
-  "Channel": "VOICE",
-  "LanguageCode": "en-AU",
-  "JobStatus": "COMPLETED",
-  "ContentMetadata": { "Output": "Redacted", "RedactionTypes": ["PII"] },
-  "CustomerMetadata": {
-    "ContactId": "3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b",
-    "InstanceId": "11111111-2222-3333-4444-555555555555",
-    "InputS3Uri": "s3://example-connect-bucket/connect/example-instance/CallRecordings/2026/09/02/3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b_20260902T00:14_UTC.wav"
+  "Categories": {
+    "MatchedCategories": [],
+    "MatchedDetails": {}
   },
-  "Participants": [
-    { "ParticipantId": "AGENT", "ParticipantRole": "AGENT" },
-    { "ParticipantId": "CUSTOMER", "ParticipantRole": "CUSTOMER" }
-  ],
-  "Categories": { "MatchedCategories": [], "MatchedDetails": {} },
+  "Channel": "VOICE",
+  "ContentMetadata": {
+    "Output": "Redacted",
+    "RedactionTypes": [
+      "PII"
+    ],
+    "RedactionTypesMetadata": {
+      "PII": {
+        "RedactionMaskMode": "PII"
+      }
+    }
+  },
   "ConversationCharacteristics": {
-    "TotalConversationDurationMillis": 45000,
+    "Interruptions": {
+      "InterruptionsByInterrupter": {},
+      "TotalCount": 0,
+      "TotalTimeMillis": 0
+    },
+    "NonTalkTime": {
+      "Instances": [
+        {
+          "BeginOffsetMillis": 20070,
+          "DurationMillis": 3740,
+          "EndOffsetMillis": 23810
+        },
+        {
+          "BeginOffsetMillis": 26740,
+          "DurationMillis": 19700,
+          "EndOffsetMillis": 46440
+        },
+        {
+          "BeginOffsetMillis": 53920,
+          "DurationMillis": 3480,
+          "EndOffsetMillis": 57400
+        },
+        {
+          "BeginOffsetMillis": 64810,
+          "DurationMillis": 4510,
+          "EndOffsetMillis": 69320
+        },
+        {
+          "BeginOffsetMillis": 76550,
+          "DurationMillis": 3750,
+          "EndOffsetMillis": 80300
+        },
+        {
+          "BeginOffsetMillis": 83190,
+          "DurationMillis": 4360,
+          "EndOffsetMillis": 87550
+        }
+      ],
+      "TotalTimeMillis": 39540
+    },
     "Sentiment": {
-      "OverallSentiment": { "AGENT": 1.5, "CUSTOMER": -0.5 },
+      "OverallSentiment": {
+        "AGENT": 0,
+        "CUSTOMER": -5
+      },
       "SentimentByPeriod": {
         "QUARTER": {
           "AGENT": [
-            { "BeginOffsetMillis": 0, "EndOffsetMillis": 11250, "Score": 1.0 },
-            { "BeginOffsetMillis": 11250, "EndOffsetMillis": 22500, "Score": 1.5 },
-            { "BeginOffsetMillis": 22500, "EndOffsetMillis": 33750, "Score": 2.0 },
-            { "BeginOffsetMillis": 33750, "EndOffsetMillis": 45000, "Score": 1.5 }
+            {
+              "BeginOffsetMillis": 0,
+              "EndOffsetMillis": 22975,
+              "Score": 0
+            },
+            {
+              "BeginOffsetMillis": 22975,
+              "EndOffsetMillis": 45950,
+              "Score": 0
+            },
+            {
+              "BeginOffsetMillis": 45950,
+              "EndOffsetMillis": 68925,
+              "Score": 0
+            },
+            {
+              "BeginOffsetMillis": 68925,
+              "EndOffsetMillis": 91900,
+              "Score": 0
+            }
           ],
           "CUSTOMER": [
-            { "BeginOffsetMillis": 0, "EndOffsetMillis": 11250, "Score": -2.5 },
-            { "BeginOffsetMillis": 11250, "EndOffsetMillis": 22500, "Score": -1.0 },
-            { "BeginOffsetMillis": 22500, "EndOffsetMillis": 33750, "Score": 0.0 },
-            { "BeginOffsetMillis": 33750, "EndOffsetMillis": 45000, "Score": 2.5 }
+            {
+              "BeginOffsetMillis": 0,
+              "EndOffsetMillis": 20797,
+              "Score": 0
+            },
+            {
+              "BeginOffsetMillis": 20797,
+              "EndOffsetMillis": 41595,
+              "Score": 0
+            },
+            {
+              "BeginOffsetMillis": 41595,
+              "EndOffsetMillis": 62392,
+              "Score": -5
+            },
+            {
+              "BeginOffsetMillis": 62392,
+              "EndOffsetMillis": 83190,
+              "Score": -5
+            }
           ]
         }
       }
     },
-    "Interruptions": {
-      "TotalCount": 1,
-      "TotalTimeMillis": 600,
-      "InterruptionsByInterrupter": {
-        "CUSTOMER": [ { "BeginOffsetMillis": 9300, "DurationMillis": 600, "EndOffsetMillis": 9900 } ]
-      }
-    },
-    "NonTalkTime": {
-      "TotalTimeMillis": 9000,
-      "Instances": [ { "BeginOffsetMillis": 22000, "DurationMillis": 9000, "EndOffsetMillis": 31000 } ]
-    },
-    "TalkTime": {
-      "TotalTimeMillis": 31000,
-      "DetailsByParticipant": { "AGENT": { "TotalTimeMillis": 18000 }, "CUSTOMER": { "TotalTimeMillis": 13000 } }
-    },
     "TalkSpeed": {
-      "DetailsByParticipant": { "AGENT": { "AverageWordsPerMinute": 152 }, "CUSTOMER": { "AverageWordsPerMinute": 131 } }
-    },
-    "ContactSummary": {
-      "AutoGenerated": {
-        "PostContactSummary": {
-          "Content": "Customer could not connect to the VPN because their certificate had expired. The agent issued a new certificate and told the customer to reconnect after two minutes."
+      "DetailsByParticipant": {
+        "AGENT": {
+          "AverageWordsPerMinute": 150
+        },
+        "CUSTOMER": {
+          "AverageWordsPerMinute": 169
         }
       }
-    }
+    },
+    "TalkTime": {
+      "DetailsByParticipant": {
+        "AGENT": {
+          "TotalTimeMillis": 23570
+        },
+        "CUSTOMER": {
+          "TotalTimeMillis": 10299
+        }
+      },
+      "TotalTimeMillis": 33869
+    },
+    "TotalConversationDurationMillis": 91900
   },
+  "CustomerMetadata": {
+    "ContactId": "3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b",
+    "InputS3Uri": "s3://example-connect-bucket/connect/example-instance/CallRecordings/2026/09/16/3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b_20260916T03:20_UTC.wav",
+    "InstanceId": "11111111-2222-3333-4444-555555555555"
+  },
+  "CustomModels": [],
+  "JobStatus": "COMPLETED",
+  "LanguageCode": "en-AU",
+  "Participants": [
+    {
+      "ParticipantId": "CUSTOMER",
+      "ParticipantRole": "CUSTOMER"
+    },
+    {
+      "ParticipantId": "AGENT",
+      "ParticipantRole": "AGENT"
+    }
+  ],
   "Transcript": [
     {
-      "Id": "seg-0001", "ParticipantId": "AGENT", "ParticipantRole": "AGENT",
-      "Content": "Hi, you've reached the IT service desk. How can I help today?",
-      "BeginOffsetMillis": 0, "EndOffsetMillis": 3200, "Sentiment": "NEUTRAL",
-      "LoudnessScore": [61.2, 60.8, 59.9], "IssuesDetected": [], "OutcomesDetected": [], "ActionItemsDetected": []
+      "BeginOffsetMillis": 18490,
+      "Content": "Hello.",
+      "EndOffsetMillis": 20070,
+      "Id": "afd54e19-2f8f-44aa-9ccb-cfc34c656df0",
+      "LoudnessScore": [
+        83,
+        80,
+        0
+      ],
+      "ParticipantId": "AGENT",
+      "Sentiment": "NEUTRAL"
     },
     {
-      "Id": "seg-0002", "ParticipantId": "CUSTOMER", "ParticipantRole": "CUSTOMER",
-      "Content": "Yeah hi um I can't get onto the VPN it keeps saying authentication failed",
-      "BeginOffsetMillis": 3800, "EndOffsetMillis": 9100, "Sentiment": "NEGATIVE",
-      "LoudnessScore": [58.0, 63.1], "IssuesDetected": [ { "CharacterOffsets": { "BeginOffsetChar": 15, "EndOffsetChar": 72 } } ]
+      "BeginOffsetMillis": 23810,
+      "Content": "Um, can you hear me?",
+      "EndOffsetMillis": 26740,
+      "Id": "b1ed2ac0-0547-431d-a1ec-611651264384",
+      "LoudnessScore": [
+        0,
+        85,
+        86,
+        68
+      ],
+      "ParticipantId": "AGENT",
+      "Sentiment": "NEUTRAL"
     },
     {
-      "Id": "seg-0003", "ParticipantId": "CUSTOMER", "ParticipantRole": "CUSTOMER",
-      "Content": "and I've tried like three times already",
-      "BeginOffsetMillis": 9300, "EndOffsetMillis": 12000, "Sentiment": "NEGATIVE",
-      "LoudnessScore": [64.0]
+      "ActionItemsDetected": [
+        {
+          "CharacterOffsets": {
+            "BeginOffsetChar": 15,
+            "EndOffsetChar": 88
+          },
+          "Text": "let me file this in our system and I will get back to you in about 2 days"
+        }
+      ],
+      "BeginOffsetMillis": 46440,
+      "Content": "Yes, sure. Um, let me file this in our system and someone will call you back within 2 days.",
+      "EndOffsetMillis": 53920,
+      "Id": "93c57970-4ee0-407b-9e98-78fdb014d1aa",
+      "LoudnessScore": [
+        83,
+        85,
+        83,
+        83
+      ],
+      "ParticipantId": "AGENT",
+      "Sentiment": "NEUTRAL"
     },
     {
-      "Id": "seg-0004", "ParticipantId": "AGENT", "ParticipantRole": "AGENT",
-      "Content": "Sorry about that. Can I confirm your staff email so I can check the account?",
-      "BeginOffsetMillis": 12600, "EndOffsetMillis": 16400, "Sentiment": "NEUTRAL",
-      "LoudnessScore": [60.1]
+      "BeginOffsetMillis": 57400,
+      "Content": "Oh man, 2 days? That's such a long time. I need access today, my email is [PII].",
+      "EndOffsetMillis": 64810,
+      "Id": "81a4814d-ca40-47ef-a202-27770b15f03c",
+      "LoudnessScore": [
+        77,
+        78,
+        68,
+        75
+      ],
+      "ParticipantId": "CUSTOMER",
+      "Sentiment": "NEGATIVE",
+      "Redaction": {
+        "RedactedTimestamps": [
+          {
+            "BeginOffsetMillis": 63310,
+            "EndOffsetMillis": 64810
+          }
+        ]
+      }
     },
     {
-      "Id": "seg-0005", "ParticipantId": "CUSTOMER", "ParticipantRole": "CUSTOMER",
-      "Content": "it's [PII]",
-      "BeginOffsetMillis": 17000, "EndOffsetMillis": 19100, "Sentiment": "NEUTRAL",
-      "LoudnessScore": [57.5],
-      "Redaction": { "RedactedTimestamps": [ { "BeginOffsetMillis": 17400, "EndOffsetMillis": 19100 } ] }
+      "BeginOffsetMillis": 69320,
+      "Content": "I'm sorry, there is right now nothing I can do to speed that up.",
+      "EndOffsetMillis": 76550,
+      "Id": "ba71ef95-1df1-475c-897c-62a5aac07474",
+      "LoudnessScore": [
+        83,
+        83,
+        82,
+        82
+      ],
+      "OutcomesDetected": [
+        {
+          "CharacterOffsets": {
+            "BeginOffsetChar": 10,
+            "EndOffsetChar": 69
+          },
+          "Text": "There is right now nothing I can do to speed up the process"
+        }
+      ],
+      "ParticipantId": "AGENT",
+      "Sentiment": "NEUTRAL"
     },
     {
-      "Id": "seg-0006", "ParticipantId": "AGENT", "ParticipantRole": "AGENT",
-      "Content": "Thanks. Your VPN certificate expired yesterday. I've issued a new one; it will install in about two minutes. Then disconnect and reconnect.",
-      "BeginOffsetMillis": 19500, "EndOffsetMillis": 28900, "Sentiment": "POSITIVE",
-      "LoudnessScore": [60.4, 60.0], "OutcomesDetected": [ { "CharacterOffsets": { "BeginOffsetChar": 46, "EndOffsetChar": 70 } } ]
+      "BeginOffsetMillis": 80300,
+      "Content": "Then I need to escalate this, this is not acceptable.",
+      "EndOffsetMillis": 83190,
+      "Id": "3f99f913-7d70-4d62-9249-1c2927ae473d",
+      "LoudnessScore": [
+        77,
+        75,
+        74,
+        0
+      ],
+      "ParticipantId": "CUSTOMER",
+      "Sentiment": "NEGATIVE"
     },
     {
-      "Id": "seg-0007", "ParticipantId": "CUSTOMER", "ParticipantRole": "CUSTOMER",
-      "Content": "okay so wait two minutes then reconnect",
-      "BeginOffsetMillis": 31000, "EndOffsetMillis": 33600, "Sentiment": "NEUTRAL",
-      "LoudnessScore": [56.9]
-    },
-    {
-      "Id": "seg-0008", "ParticipantId": "AGENT", "ParticipantRole": "AGENT",
-      "Content": "That's right. If it still fails, call back and say certificate and I'll transfer you to the network team.",
-      "BeginOffsetMillis": 34000, "EndOffsetMillis": 39800, "Sentiment": "NEUTRAL",
-      "LoudnessScore": [59.7], "ActionItemsDetected": [ { "CharacterOffsets": { "BeginOffsetChar": 13, "EndOffsetChar": 60 } } ]
-    },
-    {
-      "Id": "seg-0009", "ParticipantId": "CUSTOMER", "ParticipantRole": "CUSTOMER",
-      "Content": "no worries that's sorted thanks",
-      "BeginOffsetMillis": 41000, "EndOffsetMillis": 43200, "Sentiment": "POSITIVE",
-      "LoudnessScore": [58.2]
+      "BeginOffsetMillis": 87550,
+      "Content": "OK, I will escalate that for you to a human, bear with me.",
+      "EndOffsetMillis": 91900,
+      "Id": "8172b0ec-db03-439b-b69c-f3efd335f16b",
+      "LoudnessScore": [
+        0,
+        82,
+        82,
+        79
+      ],
+      "ParticipantId": "AGENT",
+      "Sentiment": "NEUTRAL"
     }
-  ]
+  ],
+  "Version": "1.1.0"
 }

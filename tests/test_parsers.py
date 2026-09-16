@@ -10,32 +10,29 @@ from parsers.common import parse_agent_roles, role_of
 from parsers.voice import parse_voice
 
 
-def test_voice_turns_roles_and_merge():
+def test_voice_real_shape_turns_roles_and_merge():
+    """Fixture is a sanitised file from a live instance: 7 segments, two same-speaker runs merged."""
     parsed = parse_voice(load_fixture("contact-lens-voice-redacted.json"), VOICE_START)
-    roles = [t["role"] for t in parsed.turns]
-    # nine segments, two consecutive customer segments merged -> eight turns
-    assert len(parsed.turns) == 8
-    assert roles == ["agent", "user", "agent", "user", "agent", "user", "agent", "user"]
-    assert parsed.notes["segments_merged"] == 1
-    assert parsed.turns[1]["text"].startswith("Yeah hi um") and parsed.turns[1]["text"].endswith("three times already")
-    assert parsed.turns[3]["text"] == "it's [PII]"  # redaction marker passed through untouched
+    assert [t["role"] for t in parsed.turns] == ["agent", "user", "agent", "user", "agent"]
+    assert parsed.notes["segments_merged"] == 2
+    assert parsed.turns[0]["text"].startswith("Hello. Um, can you hear me? Yes, sure.")
+    assert "[PII]" in parsed.turns[1]["text"]       # redaction marker passed through untouched
+    assert parsed.duration_ms == 91900
+    assert parsed.participant_ids == ["CUSTOMER", "AGENT"]
 
 
-def test_voice_timestamps_are_offsets_from_started_at():
+def test_voice_timestamps_are_offsets_from_anchor():
     parsed = parse_voice(load_fixture("contact-lens-voice-redacted.json"), VOICE_START)
-    assert parsed.turns[0]["ts"] == "2026-09-02T00:14:00.000+00:00"
-    assert parsed.turns[1]["ts"] == "2026-09-02T00:14:03.800+00:00"
+    assert parsed.turns[0]["ts"] == "2026-09-02T00:14:18.490+00:00"   # first segment at 18490 ms
     assert [t["ts"] for t in parsed.turns] == sorted(t["ts"] for t in parsed.turns)
-    assert parsed.duration_ms == 45000
 
 
-def test_voice_platform_signals_generic_names_only():
-    parsed = parse_voice(load_fixture("contact-lens-voice-redacted.json"), VOICE_START)
-    sig = parsed.platform_signals
-    assert sig["overall_sentiment_user"] == -0.5
-    assert [p["score"] for p in sig["sentiment_by_period"]] == [-2.5, -1.0, 0.0, 2.5]
-    assert sig["talk_time_ms"] == 31000 and sig["non_talk_time_ms"] == 9000 and sig["interruptions"] == 1
-    assert sig["summary"].startswith("Customer could not connect to the VPN")
+def test_voice_real_shape_platform_signals():
+    sig = parse_voice(load_fixture("contact-lens-voice-redacted.json"), VOICE_START).platform_signals
+    assert sig["overall_sentiment_user"] == -5
+    assert [p["score"] for p in sig["sentiment_by_period"]] == [0, 0, -5, -5]
+    assert sig["talk_time_ms"] == 33869 and sig["non_talk_time_ms"] == 39540 and sig["interruptions"] == 0
+    assert "summary" not in sig                      # generated summaries not enabled on the instance
     assert not any("lens" in k.lower() or "contact" in k.lower() for k in sig)
 
 
@@ -45,11 +42,12 @@ def test_voice_without_analytics_block_has_no_signals():
     parsed = parse_voice(doc, VOICE_START)
     assert parsed.platform_signals is None
     assert parsed.duration_ms is None
-    assert len(parsed.turns) == 8
+    assert len(parsed.turns) == 5
 
 
-def test_voice_summary_accepts_older_nesting():
-    doc = load_fixture("contact-lens-voice-redacted.json")
+def test_voice_synthetic_summary_both_nestings():
+    doc = load_fixture("contact-lens-voice-synthetic.json")
+    assert parse_voice(doc, VOICE_START).platform_signals["summary"].startswith("Customer could not connect to the VPN")
     doc["ConversationCharacteristics"]["ContactSummary"] = {"PostContactSummary": {"Content": "older shape"}}
     assert parse_voice(doc, VOICE_START).platform_signals["summary"] == "older shape"
 
@@ -58,9 +56,9 @@ def test_voice_escalation_detected_when_second_agent_participant_speaks():
     doc = load_fixture("contact-lens-voice-redacted.json")
     doc["Participants"].append({"ParticipantId": "AGENT-2", "ParticipantRole": "AGENT"})
     doc["Transcript"].append({"ParticipantId": "AGENT-2", "ParticipantRole": "AGENT",
-                              "Content": "Hi, this is the network team.", "BeginOffsetMillis": 44000})
+                              "Content": "Hi, this is the network team.", "BeginOffsetMillis": 95000})
     parsed = parse_voice(doc, VOICE_START)
-    assert parsed.escalation_at == VOICE_START.replace(second=44)
+    assert parsed.escalation_at == VOICE_START.replace(minute=15, second=35)
     assert len(parsed.participant_ids) == 3
 
 

@@ -86,16 +86,16 @@ Then make one test call or chat and wait for analytics to finish. On a live chat
 - `session_id`: the Connect `ContactId`. This is also the `tid` on the survey link, which is how survey and transcript join.
 - `agent.id`, `agent.version`: the two template parameters.
 - `channel`: `voice` or `chat`, from the S3 path.
-- `started_at`, `ended_at`: from the contact record.
+- `started_at`, `ended_at`: from the contact record. Voice turn timestamps count from the moment the call connected to an agent, which is when Connect's analytics start.
 - `turns[]`: the redacted transcript text with a role (`user`, `agent` or `system`) and a timestamp per turn. Messages your flow or bot sends arrive from Connect with role `SYSTEM` and are mapped to `agent` by default. Consecutive voice segments from the same speaker are merged into one turn.
 - `outcome`: `unknown`, unless you set `OutcomeAttributeName`.
-- `events[]`: an `escalation_to_human` event when a human agent was connected, or when a second agent-role participant appears in the transcript.
+- `events[]`: an `escalation_to_human` event when a human agent was connected to the contact, or when a second agent-role participant appears in the transcript. On a contact answered by a human from the start this event is still emitted; it means "a person handled this", not "the bot gave up".
 - `platform_signals` (optional): numbers Connect already computed, forwarded as-is. Customer sentiment overall and by period, talk and non-talk time, interruption count, agent response time, and the generated contact summary. **ciopulse displays these as comparators next to its own reading. They are never used as scoring inputs.** The block is omitted entirely when analytics did not produce it.
 - `metadata`: queue name, initiation method, forwarder version. Under 2 KB.
 
 **Never sent, never read:**
 
-- Audio. The IAM policy allows `s3:GetObject` on `*.json` under the redacted prefixes only. The `.wav` files next to them are not readable by this role.
+- Audio. The IAM policy allows `s3:GetObject` on `*.json` under the redacted prefixes only. The redacted `.wav` that Connect writes next to each voice analysis file is not readable by this role, and the event rule never fires for it (verified).
 - Unredacted transcripts. The role has no access to the unredacted prefixes, and the handler refuses any key without `/Redacted/` in its path even if an event for one arrives.
 - Phone numbers, customer names, display names, attachment names. Connect redacts these before the file is written.
 - Contact attributes other than the one you name in `OutcomeAttributeName`.

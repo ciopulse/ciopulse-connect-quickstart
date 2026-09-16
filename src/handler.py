@@ -354,8 +354,14 @@ def process_object(bucket: str, key: str, s: Settings) -> dict:
             duration = ((doc.get("ConversationCharacteristics") or {}).get("TotalConversationDurationMillis") or 0)
             started_at = last_modified - timedelta(milliseconds=int(duration))
 
-        parsed = parse_voice(doc, started_at, s.agent_roles) if channel == "voice" \
-            else parse_chat(doc, started_at, s.agent_roles)
+        if channel == "voice":
+            # Voice offsets count from when analytics started, which is the moment the call
+            # connected to an agent (verified on a live instance), not from contact initiation.
+            anchor = (meta or {}).get("agent_connected_at") or started_at
+            parsed = parse_voice(doc, anchor, s.agent_roles)
+            parsed.notes["offset_anchor"] = "agent_connected" if (meta or {}).get("agent_connected_at") else "contact_start"
+        else:
+            parsed = parse_chat(doc, started_at, s.agent_roles)
 
         ended_at = (meta or {}).get("ended_at")
         if ended_at is None:

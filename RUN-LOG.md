@@ -30,7 +30,18 @@ A sandbox instance (`ciopulse-sandbox`, ap-southeast-2) was created with `tools/
 
 | Forwarder deployed with `sam deploy` (stack tags required by the account's SCP), pointed at the in-account mock receiver (`tools/mock-receiver/`). A second chat ended at 05:11:16Z; the analysis file landed, the EventBridge rule matched the root-level key with the default `*Analysis/Chat/Redacted/*.json` wildcard, and the forwarder posted within ~3 minutes of the chat ending: `202`, 5 turns, `platform_signals` present, 281 ms in the Lambda | ✅ item 1 closed for chat; end-to-end proven |
 
-Still unverified: everything voice (no phone number claimed) and the `AgentInfo`/escalation behaviour on a transferred contact.
+**Voice, verified 16 September 2026** with a claimed Sydney DID, a flow that transfers to BasicQueue, and a human answering in the softphone:
+
+| Fact | Verified |
+|---|---|
+| Voice analysis lands at the bucket root too: `Analysis/Voice/Redacted/YYYY/MM/DD/<contactId>_analysis_redacted_<ts>.json`, with the redacted `.wav` beside it. The raw recording stays under the storage prefix `connect/<alias>/CallRecordings/…` | ✅ item 2 closed for voice |
+| The `.wav` never triggered the forwarder (wildcard ends in `.json`) | ✅ |
+| File shape matches the documented one: `Version 1.1.0`, `Participants` with `ParticipantId` = `ParticipantRole` (`CUSTOMER`, `AGENT`), segments with millisecond offsets and no `ParticipantRole` key, `Sentiment.OverallSentiment` flat per participant, `SentimentByPeriod.QUARTER`, `TalkTime`/`NonTalkTime`/`Interruptions`/`TalkSpeed` with `DetailsByParticipant`, `TotalConversationDurationMillis`, an extra `CustomModels` key, and **no `ContactSummary`** (generated summaries not enabled) | ✅ item 6 closed for voice; sanitised file is now `fixtures/contact-lens-voice-redacted.json` |
+| **Offsets count from the agent-connect moment**: the `<ts>` in the filename equals `AgentInfo.ConnectedToAgentTimestamp` and the first segment sits 18 s into the recording. Anchoring on `InitiationTimestamp` put turns ~15 s early | ✅ item 4 closed; handler now anchors on `ConnectedToAgentTimestamp` when present and records `metadata.offset_anchor` |
+| `AgentInfo` present → `escalation_to_human` emitted, even though no bot preceded the human | ✅ item 5 narrowed: semantics documented in the README; a bot-then-transfer contact is still untested |
+| Analysis file appeared ~5 minutes after hang-up; the forwarder delivered 5 turns with signals, `202`, 2.7 s | ✅ end-to-end for voice |
+
+Still unverified: a contact that starts with a bot and is transferred to a human (how many analysis files, which participants), and a Lex or Connect AI-agent participant role in voice.
 
 ## 1. Trigger: S3 events through EventBridge, not S3-to-Lambda notifications
 
@@ -62,7 +73,7 @@ Also unverified: whether the voice file name is exactly `<contactId>_analysis_re
 
 **The imprecision.** Offsets are relative to the start of the analysed audio, which begins when analytics starts in the flow, not at contact initiation. For a contact with IVR time before the agent, turn timestamps will be early by that amount. Turn *order* is unaffected, and the survey join uses `session_id`, not time.
 
-**Verify.** Compare the first turn's `ts` with `AgentInfo.ConnectedToAgentTimestamp` (human) or the analytics block position (bot) on one real contact. If a consistent offset matters, a future version can anchor on `ConnectedToAgentTimestamp` when present.
+**Verified 16 Sep 2026:** offsets are relative to `AgentInfo.ConnectedToAgentTimestamp`. The handler now anchors there when the field exists and falls back to `InitiationTimestamp` otherwise, recording which in `metadata.offset_anchor`.
 
 ## 5. Escalation detection
 
