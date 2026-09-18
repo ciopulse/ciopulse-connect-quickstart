@@ -4,7 +4,7 @@ Forward redacted Amazon Connect conversation transcripts to ciopulse, from your 
 
 This package is a small AWS Lambda function plus a SAM template. It watches the redacted output of Amazon Connect's conversational analytics in your S3 bucket, maps each finished contact to the ciopulse *send-a-copy* payload, and POSTs it to ciopulse. Nothing else is created in your account, no audio is ever read, and ciopulse never holds credentials to your systems.
 
-> **Status:** v0.1.0 · targets send-a-copy contract v0.2 · Python 3.12, boto3 only · MIT licence
+> **Status:** v0.1.0 preview · targets send-a-copy contract v0.2 · Python 3.12, boto3 only · MIT licence · see [CHANGELOG](CHANGELOG.md) for what is verified and what is not
 
 ---
 
@@ -46,9 +46,10 @@ The forwarder does **not** need Kinesis, EventBridge Contact Lens events, the an
 ```bash
 git clone https://github.com/ciopulse/ciopulse-connect-quickstart.git
 cd ciopulse-connect-quickstart
-sam build
 sam deploy --guided
 ```
+
+No `sam build` step: the function has no dependencies beyond boto3, which the Lambda runtime provides, so SAM packages the source directory as it is. (`sam build` would insist on a local Python 3.12; if you ever add a dependency, run `sam build --use-container` instead.)
 
 The guided deploy asks for these values. Five have no default and you must supply them:
 
@@ -158,9 +159,9 @@ To run the mock and post a fixture by hand:
 
 ```bash
 python3 tools/mock-receiver/mock_ingest.py --key test           # terminal 1, listens on :8088
-sam build && sam local invoke ForwarderFunction \
+sam local invoke ForwarderFunction \
   --event fixtures/events/eventbridge-voice.json \
-  --env-vars fixtures/env.local.json               # terminal 2
+  --env-vars fixtures/env.local.json               # terminal 2 (needs Docker)
 ```
 
 `sam local invoke` still needs real AWS credentials for S3, Secrets Manager and Connect, so for a credential-free run use the unit tests, which stub those clients and drive the handler end to end against the mock.
@@ -200,4 +201,4 @@ The payload follows the **send-a-copy contract v0.2**: v0.1 plus `channel: "voic
 
 ---
 
-Licence: MIT. Issues and pull requests welcome.
+Licence: MIT. Issues and pull requests welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). To report a security problem, see [SECURITY.md](SECURITY.md).

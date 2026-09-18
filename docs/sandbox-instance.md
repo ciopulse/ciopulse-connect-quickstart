@@ -82,7 +82,7 @@ Notes from a live instance: the bot needs an `en_US` locale as well as your own,
 
 ```bash
 aws secretsmanager create-secret --name ciopulse/api-key --secret-string '<key>'
-sam build && sam deploy --guided
+sam deploy --guided
 ```
 
 Use the bucket and instance ARN the script printed, the secret's ARN, and any agent id and version. Point `CiopulseEndpoint` at a mock receiver first if you want to see the payload before it reaches ciopulse.
