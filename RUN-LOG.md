@@ -59,6 +59,16 @@ A sandbox instance (`ciopulse-sandbox`, ap-southeast-2) was created with `tools/
 | **Design consequence for the survey:** the Disconnect flow runs on the *last* leg. Build the survey `tid` from `$.InitialContactId` (falls back to the contact's own id when there was no transfer) so one conversation yields one survey, joined to the first leg where the AI agent was | recorded here and in `docs/survey-flow.md` |
 | **No analysis file appeared for the transferred leg** (12 minutes; the first leg's arrived in 4.5). Most likely cause: a transferred contact runs the *queue transfer* flow, and the stock "Default queue transfer" flow has no *Set recording and analytics behavior* block, so analytics was never enabled on leg two. A second possible cause is that the customer sent no message in that leg. **Customer guidance either way: put the analytics block in the transfer flow as well as the inbound flow**, or the human leg of an escalated conversation is never analysed | ⚠️ recorded; retest with a patched transfer flow pending |
 
+**Contract v0.3, verified 18 September 2026.** The 0.2.0 forwarder and mock were redeployed to the sandbox and three saved real contacts were replayed. The mock accepted all three as `contract_version` 0.3:
+
+| Contact | Channel | Turns | `actor` values seen | `conversation_id` |
+|---|---|---|---|---|
+| Bot, then human in the same contact | chat | 13 | bot, human | equals `session_id` (no agent transfer) |
+| Human-answered call | voice | 5 | human | equals `session_id` |
+| Bot only | chat | 5 | bot | equals `session_id` |
+
+The transferred leg of the earlier agent transfer has no analysis file (see above), so `conversation_id` differing from `session_id` is covered by unit tests only.
+
 Still unverified: the same for voice with a bot leg before the human, and how a Connect-native AI agent (Amazon Q in Connect) is labelled, as opposed to a Lex bot.
 
 ## 1. Trigger: S3 events through EventBridge, not S3-to-Lambda notifications
