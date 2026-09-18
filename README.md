@@ -4,7 +4,7 @@ Forward redacted Amazon Connect conversation transcripts to ciopulse, from your 
 
 This package is a small AWS Lambda function plus a SAM template. It watches the redacted output of Amazon Connect's conversational analytics in your S3 bucket, maps each finished contact to the ciopulse *send-a-copy* payload, and POSTs it to ciopulse. Nothing else is created in your account, no audio is ever read, and ciopulse never holds credentials to your systems.
 
-> **Status:** v0.1.0 preview · targets send-a-copy contract v0.2 · Python 3.12, boto3 only · MIT licence · see [CHANGELOG](CHANGELOG.md) for what is verified and what is not
+> **Status:** v0.2.0 preview · sends send-a-copy contract v0.3 · Python 3.12, boto3 only · MIT licence · see [CHANGELOG](CHANGELOG.md) for what is verified and what is not
 
 ---
 
@@ -84,11 +84,12 @@ Then make one test call or chat and wait for analytics to finish. On a live chat
 
 **Sent, per contact, as one JSON document over HTTPS:**
 
-- `session_id`: the Connect `ContactId`. This is also the `tid` on the survey link, which is how survey and transcript join.
+- `session_id`: the Connect `ContactId` of this leg.
+- `conversation_id`: Connect's `InitialContactId`. It equals `session_id` unless an agent transferred the contact, in which case every leg carries the first leg's ID. **This is the `tid` on the survey link**, which is how survey and transcript join.
 - `agent.id`, `agent.version`: the two template parameters.
 - `channel`: `voice` or `chat`, from the S3 path.
 - `started_at`, `ended_at`: from the contact record. Voice turn timestamps count from the moment the call connected to an agent, which is when Connect's analytics start.
-- `turns[]`: the redacted transcript text with a role (`user`, `agent` or `system`) and a timestamp per turn. Messages your flow or bot sends arrive from Connect with role `SYSTEM` and are mapped to `agent` by default. Consecutive voice segments from the same speaker are merged into one turn.
+- `turns[]`: the redacted transcript text with a role (`user`, `agent` or `system`) and a timestamp per turn. Messages your flow or bot sends arrive from Connect with role `SYSTEM` and are mapped to `agent` by default. Every `agent` turn also carries `actor`: `bot` for SYSTEM, BOT and CUSTOM_BOT, `human` for AGENT, so ciopulse can score the AI agent without the person who took over. Consecutive voice segments from the same speaker are merged into one turn.
 - `outcome`: `unknown`, unless you set `OutcomeAttributeName`.
 - `events[]`: an `escalation_to_human` event when a human agent was connected to the contact, or when a second agent-role participant appears in the transcript. On a contact answered by a human from the start this event is still emitted; it means "a person handled this", not "the bot gave up".
 - `platform_signals` (optional): numbers Connect already computed, forwarded as-is. Customer sentiment overall and by period, talk and non-talk time, interruption count, agent response time, and the generated contact summary. **ciopulse displays these as comparators next to its own reading. They are never used as scoring inputs.** The block is omitted entirely when analytics did not produce it.
@@ -179,13 +180,13 @@ Put the same string in the forwarder's Secrets Manager secret, set `CiopulseEndp
 
 ## 8. Contract reference
 
-The payload follows the **send-a-copy contract v0.2**: v0.1 plus `channel: "voice"` and the optional `platform_signals` block. Field additions within v0.x are backwards-compatible.
+The payload follows the **send-a-copy contract v0.3**: v0.2 plus optional `turns[].actor` and `conversation_id`. Field additions within v0.x are backwards-compatible.
 
 - Endpoint: `POST https://app.cio-pulse.com/api/v5/ai-agent/transcripts`
 - Auth: `X-API-Key` header
 - Limits: 1 MB, 500 turns, `metadata` ≤ 2 KB
 - Response: `202` with a receipt; `400` with field-level problems; `401`; `413`; `429` with `Retry-After`
-- Full text: [docs/send-a-copy-spec-v0.2.md](docs/send-a-copy-spec-v0.2.md). Contract v0.3 ([docs/send-a-copy-spec-v0.3.md](docs/send-a-copy-spec-v0.3.md)) adds optional `turns[].actor` and `conversation_id`; the forwarder will send it from v0.2.0.
+- Full text: [docs/send-a-copy-spec-v0.3.md](docs/send-a-copy-spec-v0.3.md). The previous version stays at [docs/send-a-copy-spec-v0.2.md](docs/send-a-copy-spec-v0.2.md).
 
 ## 9. Design notes
 

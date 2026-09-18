@@ -28,6 +28,7 @@ MAX_BYTES = 1_048_576
 MAX_TURNS = 500
 MAX_META = 2048
 ROLES = {"user", "agent", "system"}
+ACTORS = {"bot", "human"}
 CHANNELS = {"chat", "voice"}
 OUTCOMES = {"contained", "escalated", "abandoned", "unknown"}
 ISO = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}:\d{2}|Z)$")
@@ -52,14 +53,18 @@ def validate(p):
     cv = p.get("contract_version")
     if cv is None:
         bad("contract_version", "required")
-    elif cv not in ("0.1", "0.2"):
-        bad("contract_version", f"unsupported version {cv!r}; this endpoint accepts 0.1 or 0.2")
+    elif cv not in ("0.1", "0.2", "0.3"):
+        bad("contract_version", f"unsupported version {cv!r}; this endpoint accepts 0.1, 0.2 or 0.3")
 
     sid = p.get("session_id")
     if not sid:
         bad("session_id", "required")
     elif not isinstance(sid, str) or not (1 <= len(sid) <= 50):
         bad("session_id", "must be a string of 1-50 characters (it is also the survey tid)")
+
+    conv = p.get("conversation_id")
+    if conv is not None and (not isinstance(conv, str) or not (1 <= len(conv) <= 50)):
+        bad("conversation_id", "must be a string of 1-50 characters (it is the survey tid)")
 
     ag = p.get("agent")
     if not isinstance(ag, dict):
@@ -99,6 +104,10 @@ def validate(p):
                 continue
             if t.get("role") not in ROLES:
                 bad(f"turns[{i}].role", f"must be one of {sorted(ROLES)}")
+            if "actor" in t and t["actor"] not in ACTORS:
+                bad(f"turns[{i}].actor", f"must be one of {sorted(ACTORS)} when present")
+            if "actor" in t and t.get("role") != "agent":
+                bad(f"turns[{i}].actor", "only meaningful on agent turns")
             if not isinstance(t.get("text"), str):
                 bad(f"turns[{i}].text", "required string")
             ts = t.get("ts")
@@ -132,7 +141,7 @@ def validate(p):
 
 
 class H(BaseHTTPRequestHandler):
-    server_version = "ciopulse-mock-ingest/0.2"
+    server_version = "ciopulse-mock-ingest/0.3"
 
     def log_message(self, fmt, *a):
         sys.stderr.write("  %s\n" % (fmt % a))
@@ -159,7 +168,7 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            return self._send(200, {"status": "ok", "contract": ["0.1", "0.2"]})
+            return self._send(200, {"status": "ok", "contract": ["0.1", "0.2", "0.3"]})
         if self.path == "/received":
             rows = []
             if STATE["log"].exists():
@@ -204,7 +213,9 @@ class H(BaseHTTPRequestHandler):
             "turns": len(payload["turns"]),
             "declared_outcome": payload.get("outcome"),
             "excluded": bool(payload.get("exclude")),
-            "has_signals": "signals" in payload,
+            "has_platform_signals": "platform_signals" in payload,
+            "contract_version": payload.get("contract_version"),
+            "conversation_id": payload.get("conversation_id", sid),
             "bytes": n,
             "replaced_previous": replaced,
         }

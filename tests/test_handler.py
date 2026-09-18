@@ -55,7 +55,8 @@ def test_voice_sends_contract_0_2(aws, env, mock_ingest, monkeypatch):
     r = handler.lambda_handler(eventbridge_event(VOICE_KEY))["results"][0]
     assert r["status"] == "forwarded"
     p = captured["payload"]
-    assert p["contract_version"] == "0.2"          # the mock rejects voice on 0.1
+    assert p["contract_version"] == "0.3"          # the mock rejects voice on 0.1
+    assert p["conversation_id"] == p["session_id"]  # no transfer: the conversation is this contact
     assert p["channel"] == "voice"
     assert p["started_at"] == "2026-09-02T00:14:00.000+00:00"
     assert p["ended_at"] == "2026-09-02T00:14:47.000+00:00"
@@ -78,7 +79,7 @@ def test_chat_end_to_end(aws, env, mock_ingest, monkeypatch):
     r = handler.lambda_handler(eventbridge_event(CHAT_KEY))["results"][0]
     assert r["status"] == "forwarded" and r["channel"] == "chat" and r["turns"] == 4
     p = captured["p"]
-    assert p["channel"] == "chat" and p["contract_version"] == "0.2"
+    assert p["channel"] == "chat" and p["contract_version"] == "0.3"
     assert [x["role"] for x in p["turns"]] == ["agent", "agent", "user", "agent"]
     assert p["platform_signals"]["response_time_ms"] == 706
     assert p["metadata"]["events_skipped"] == 2
@@ -139,6 +140,7 @@ def test_transferred_leg_carries_linkage_ids(aws, env, mock_ingest, monkeypatch)
     assert r["status"] == "forwarded"
     p = captured["p"]
     assert p["session_id"] == "3f1c9a2e-5b7d-4e8f-9a0b-1c2d3e4f5a6b"
+    assert p["conversation_id"] == "00000000-1111-2222-3333-444444444444"   # = InitialContactId = survey tid
     assert p["metadata"]["initial_contact_id"] == "00000000-1111-2222-3333-444444444444"
     assert p["metadata"]["previous_contact_id"] == "00000000-1111-2222-3333-444444444444"
     assert p["metadata"]["initiation_method"] == "TRANSFER"
@@ -175,6 +177,7 @@ def test_excluded_queue_sends_stub_without_transcript(aws, env, mock_ingest, mon
     assert r["status"] == "excluded" and r["http_status"] == 202
     assert aws["s3"].calls == []                       # transcript never downloaded
     p = captured["p"]
+    assert p["conversation_id"] == p["session_id"]
     assert p["exclude"] is True and p["turns"] == [{"role": "system", "text": "excluded by sender",
                                                     "ts": "2026-09-02T00:14:00.000+00:00"}]
     assert "platform_signals" not in p
@@ -351,3 +354,21 @@ def test_network_error_is_retried_then_failed(aws, env, monkeypatch):
     monkeypatch.setenv("CIOPULSE_ENDPOINT", "http://127.0.0.1:9/api/v5/ai-agent/transcripts")  # nothing listens
     r = handler.lambda_handler(eventbridge_event(VOICE_KEY))["results"][0]
     assert r["status"] == "failed" and r["reason"] == "network" and r["attempts"] == 3 and r["http_status"] == 0
+
+
+def test_mock_rejects_bad_v03_fields(aws, env, mock_ingest):
+    """The reference validator enforces the two v0.3 fields."""
+    import urllib.request, urllib.error
+    base = {"contract_version": "0.3", "session_id": "s-1", "agent": {"id": "a", "version": "1"},
+            "started_at": "2026-09-18T00:00:00+00:00", "ended_at": "2026-09-18T00:01:00+00:00",
+            "turns": [{"role": "user", "text": "hi", "ts": "2026-09-18T00:00:01+00:00", "actor": "bot"}],
+            "conversation_id": "x" * 51}
+    req = urllib.request.Request(mock_ingest["url"], data=json.dumps(base).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "X-API-Key": "test-key-123"})
+    try:
+        urllib.request.urlopen(req)
+        raise AssertionError("expected 400")
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 400
+        fields = {p["field"] for p in json.loads(exc.read())["problems"]}
+        assert fields == {"conversation_id", "turns[0].actor"}

@@ -26,7 +26,7 @@ def handler(event, context):
     headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
 
     if method == "GET" and path == "/health":
-        return _resp(200, {"status": "ok", "contract": ["0.1", "0.2"], "mode": "lambda-mock"})
+        return _resp(200, {"status": "ok", "contract": ["0.1", "0.2", "0.3"], "mode": "lambda-mock"})
     if method != "POST" or path.rstrip("/") != PATH:
         return _resp(404, {"error": "not found", "hint": f"POST {PATH}"})
     if not KEY or headers.get("x-api-key") != KEY:
@@ -54,6 +54,8 @@ def handler(event, context):
         "receipt_id": receipt, "session_id": sid, "channel": payload.get("channel", "chat"),
         "agent": payload.get("agent"), "turns": len(payload["turns"]), "bytes": len(raw),
         "declared_outcome": payload.get("outcome"), "has_platform_signals": "platform_signals" in payload,
+        "contract_version": payload.get("contract_version"), "conversation_id": payload.get("conversation_id", sid),
+        "actors": sorted({t.get("actor") for t in payload["turns"] if t.get("actor")}),
         "events": [e.get("type") for e in payload.get("events") or []],
     }))
     if payload.get("exclude"):

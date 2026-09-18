@@ -2,9 +2,22 @@
 
 All notable changes to this project are recorded here. The format follows Keep a Changelog; versions follow semantic versioning.
 
-## [0.1.0] - unreleased preview
+## [0.2.0] - 2026-09-18
 
-First public preview. Verified end to end on a live Amazon Connect instance in ap-southeast-2.
+Sends send-a-copy contract **v0.3**. Every valid v0.2 payload is also valid v0.3, so a receiver that accepts 0.3 needs no other change to keep working.
+
+### Added
+- `conversation_id` on every payload: Connect's `InitialContactId`, equal to `session_id` unless an agent transferred the contact. This is the value the survey `tid` carries; the survey guide already builds it from `$.InitialContactId`.
+- `turns[].actor` on every `agent` turn: `bot` for Connect roles SYSTEM, BOT and CUSTOM_BOT; `human` for AGENT and SUPERVISOR. Omitted when the role is unknown and on non-agent turns.
+- Excluded stubs carry `conversation_id` too.
+- Mock receiver accepts 0.3, validates `conversation_id` (1–50 chars) and `actor` (`bot` or `human`, agent turns only), and logs `has_platform_signals` instead of the old `has_signals`.
+
+### Changed
+- `contract_version` is now `"0.3"`.
+
+## [0.1.0] - never released
+
+Internal preview, superseded by 0.2.0 before any external install. Verified end to end on a live Amazon Connect instance in ap-southeast-2.
 
 ### Added
 - SAM template: Lambda forwarder, scoped IAM role, two EventBridge rules on S3 object-created events, log group, failed-delivery alarm.

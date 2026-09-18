@@ -135,3 +135,37 @@ def test_role_mapping_rules():
 def test_parse_agent_roles_defaults_when_blank():
     assert parse_agent_roles("") == frozenset({"AGENT", "BOT", "CUSTOM_BOT", "SYSTEM"})
     assert parse_agent_roles(" agent , custom_bot ") == frozenset({"AGENT", "CUSTOM_BOT"})
+
+
+# ----------------------------------------------------------------------------- contract v0.3: actor
+
+def test_chat_bot_turns_carry_actor_bot():
+    parsed = parse_chat(load_fixture("contact-lens-chat-redacted.json"), CHAT_START)
+    assert [t.get("actor") for t in parsed.turns] == ["bot", "bot", None, "bot"]  # SYSTEM = bot, user turns have none
+
+
+def test_chat_human_agent_turns_carry_actor_human():
+    parsed = parse_chat(load_fixture("contact-lens-chat-synthetic.json"), CHAT_START)
+    agent_turns = [t for t in parsed.turns if t["role"] == "agent"]
+    assert agent_turns and all(t["actor"] == "human" for t in agent_turns)   # raw AGENT
+
+
+def test_voice_agent_turns_carry_actor():
+    parsed = parse_voice(load_fixture("contact-lens-voice-redacted.json"), VOICE_START)
+    assert {t.get("actor") for t in parsed.turns if t["role"] == "agent"} == {"human"}
+    assert all("actor" not in t for t in parsed.turns if t["role"] == "user")
+
+
+def test_bot_then_human_in_one_chat():
+    doc = load_fixture("contact-lens-chat-redacted.json")
+    doc["Participants"].append({"ParticipantId": "p-human", "ParticipantRole": "AGENT"})
+    doc["Transcript"].append({"Type": "MESSAGE", "ContentType": "text/plain", "ParticipantId": "p-human",
+                              "ParticipantRole": "AGENT", "Content": "Hi, a person here.",
+                              "AbsoluteTime": "2026-09-15T01:46:10.000Z"})
+    parsed = parse_chat(doc, CHAT_START)
+    assert [t.get("actor") for t in parsed.turns if t["role"] == "agent"] == ["bot", "bot", "bot", "human"]
+
+
+def test_system_mapped_to_system_role_gets_no_actor():
+    parsed = parse_chat(load_fixture("contact-lens-chat-redacted.json"), CHAT_START, parse_agent_roles("AGENT"))
+    assert all("actor" not in t for t in parsed.turns)                        # actor only on agent turns

@@ -14,9 +14,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Iterable
 
-from .common import (DEFAULT_AGENT_ROLES, ROLE_AGENT, ROLE_USER, ParsedTranscript, agent_value,
-                     as_int, as_number, clean_text, iso, parse_iso, participants_map,
-                     periods, role_for_item, role_of, strip_private, summary_from, user_value)
+from .common import (DEFAULT_AGENT_ROLES, ROLE_AGENT, ROLE_USER, ParsedTranscript, actor_of, agent_value,
+                     as_int, as_number, clean_text, iso, parse_iso, participants_map, periods,
+                     raw_role_for_item, role_for_item, role_of, strip_private, summary_from, user_value)
 
 TEXT_TYPES = {"text/plain", "text/markdown"}
 
@@ -56,7 +56,11 @@ def parse_chat(doc: dict, started_at: datetime,
 
         first_ts = first_ts or ts
         last_ts = ts
-        turns.append({"role": role, "text": text, "ts": iso(ts), "_pid": pid})
+        turn = {"role": role, "text": text, "ts": iso(ts), "_pid": pid}
+        actor = actor_of(raw_role_for_item(item, parts)) if role == ROLE_AGENT else None
+        if actor:
+            turn["actor"] = actor
+        turns.append(turn)
 
     cc = doc.get("ConversationCharacteristics") or {}
     duration = as_int(cc.get("TotalConversationDurationMillis"))

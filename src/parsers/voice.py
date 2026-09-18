@@ -13,9 +13,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Iterable
 
-from .common import (DEFAULT_AGENT_ROLES, ROLE_AGENT, ParsedTranscript, agent_value,
+from .common import (DEFAULT_AGENT_ROLES, ROLE_AGENT, ParsedTranscript, actor_of, agent_value,
                      as_int, as_number, clean_text, iso, participants_map, periods,
-                     role_for_item, strip_private, summary_from, user_value)
+                     raw_role_for_item, role_for_item, strip_private, summary_from, user_value)
 
 
 def parse_voice(doc: dict, started_at: datetime,
@@ -46,7 +46,11 @@ def parse_voice(doc: dict, started_at: datetime,
             turns[-1]["text"] += " " + text
             merged += 1
         else:
-            turns.append({"role": role, "text": text, "ts": iso(ts), "_pid": pid})
+            turn = {"role": role, "text": text, "ts": iso(ts), "_pid": pid}
+            actor = actor_of(raw_role_for_item(seg, parts)) if role == ROLE_AGENT else None
+            if actor:
+                turn["actor"] = actor
+            turns.append(turn)
 
     cc = doc.get("ConversationCharacteristics") or {}
     duration = as_int(cc.get("TotalConversationDurationMillis"))

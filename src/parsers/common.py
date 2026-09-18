@@ -15,6 +15,8 @@ ROLE_AGENT = "agent"
 ROLE_SYSTEM = "system"
 
 DEFAULT_AGENT_ROLES = frozenset({"AGENT", "BOT", "CUSTOM_BOT", "SYSTEM"})
+BOT_RAW_ROLES = frozenset({"SYSTEM", "BOT", "CUSTOM_BOT"})
+HUMAN_RAW_ROLES = frozenset({"AGENT", "SUPERVISOR"})
 SUMMARY_MAX_CHARS = 2000
 
 _WS = re.compile(r"\s+")
@@ -62,6 +64,21 @@ def role_of(participant_id: Any, participant_role: Any, parts: dict[str, str],
 
 def role_for_item(item: dict, parts: dict[str, str], agent_roles: Iterable[str]) -> str:
     return role_of(item.get("ParticipantId"), item.get("ParticipantRole"), parts, agent_roles)
+
+
+def raw_role_for_item(item: dict, parts: dict[str, str]) -> str:
+    """Connect's own label for the speaker (CUSTOMER, AGENT, SYSTEM, ...), before contract mapping."""
+    raw = item.get("ParticipantRole") or parts.get(str(item.get("ParticipantId") or "")) or item.get("ParticipantId") or ""
+    return str(raw).upper()
+
+
+def actor_of(raw_role: str) -> Optional[str]:
+    """Contract v0.3 turns[].actor: who produced an agent turn. None when unknown."""
+    if raw_role in BOT_RAW_ROLES:
+        return "bot"
+    if raw_role in HUMAN_RAW_ROLES:
+        return "human"
+    return None
 
 
 def clean_text(text: Any) -> str:

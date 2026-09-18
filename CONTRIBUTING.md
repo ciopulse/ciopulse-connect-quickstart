@@ -23,7 +23,7 @@ The tests stub S3, Secrets Manager and Connect and drive the handler end to end 
 - One change, described in the first line of the commit message in the imperative.
 - A test for any behaviour change in `src/`. Parser changes should come with a real-shape fixture or an edit to one.
 - If Amazon Connect behaved differently from what the docs say, add a dated line to `RUN-LOG.md`; that file is the record of what was verified on a live instance.
-- Keep the contract in `docs/send-a-copy-spec-v0.2.md` backwards-compatible within v0.x. A field addition is fine; a rename or a change of meaning needs a new version and a note in `CHANGELOG.md`.
+- Keep the contract in `docs/send-a-copy-spec-v0.3.md` backwards-compatible within v0.x. A field addition is fine; a rename or a change of meaning needs a new version and a note in `CHANGELOG.md`.
 
 ## Releasing
 

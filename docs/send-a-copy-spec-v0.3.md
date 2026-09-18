@@ -112,7 +112,7 @@ Unknown fields inside `platform_signals` are ignored, not rejected.
 
 ## Reference implementation
 
-For Amazon Connect, the open-source **ciopulse Connect quickstart** (github.com/ciopulse/ciopulse-connect-quickstart) is a SAM package that installs in your own AWS account and implements this contract end to end from Connect's redacted analytics output.
+For Amazon Connect, the **ciopulse Connect quickstart** (github.com/ciopulse/ciopulse-connect-quickstart) is a SAM package that installs in your own AWS account and implements this contract end to end from Connect's redacted analytics output. From v0.2.0 it sends `contract_version: "0.3"` with `conversation_id` on every payload and `actor` on every `agent` turn.
 
 ---
 

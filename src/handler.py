@@ -30,8 +30,8 @@ from parsers.chat import parse_chat
 from parsers.common import ROLE_SYSTEM, ParsedTranscript, iso, parse_agent_roles
 from parsers.voice import parse_voice
 
-FORWARDER_VERSION = "0.1.0"
-CONTRACT_VERSION = "0.2"
+FORWARDER_VERSION = "0.2.0"
+CONTRACT_VERSION = "0.3"
 MAX_TURNS = 500
 MAX_PAYLOAD_BYTES = 1_048_576
 MAX_METADATA_BYTES = 2048
@@ -210,6 +210,9 @@ def build_payload(contact_id: str, channel: str, started_at: datetime, ended_at:
     payload = {
         "contract_version": CONTRACT_VERSION,
         "session_id": contact_id,
+        # The whole conversation's id: Connect's InitialContactId, which equals the ContactId unless
+        # this leg was created by a transfer. The survey tid carries the same value.
+        "conversation_id": ((meta or {}).get("initial_contact_id") or contact_id),
         "agent": {"id": s.agent_id, "version": s.agent_version},
         "channel": channel,
         "started_at": iso(started_at),
@@ -251,11 +254,12 @@ def build_payload(contact_id: str, channel: str, started_at: datetime, ended_at:
 
 
 def build_excluded_payload(contact_id: str, channel: str, started_at: datetime, ended_at: datetime,
-                           reason: str, s: Settings) -> dict:
+                           reason: str, s: Settings, conversation_id: Optional[str] = None) -> dict:
     """The stub sent for excluded contacts: envelope only, no transcript text leaves the account."""
     return {
         "contract_version": CONTRACT_VERSION,
         "session_id": contact_id,
+        "conversation_id": conversation_id or contact_id,
         "agent": {"id": s.agent_id, "version": s.agent_version},
         "channel": channel,
         "started_at": iso(started_at),
@@ -327,7 +331,8 @@ def process_object(bucket: str, key: str, s: Settings) -> dict:
     if meta and meta.get("queue_name") and meta["queue_name"].strip().lower() in s.exclude_queues:
         started_at = meta.get("started_at") or datetime.now(timezone.utc)
         ended_at = meta.get("ended_at") or started_at
-        payload = build_excluded_payload(contact_id, channel, started_at, ended_at, "queue", s)
+        payload = build_excluded_payload(contact_id, channel, started_at, ended_at, "queue", s,
+                                         meta.get("initial_contact_id"))
         return _deliver(payload, result, s, t0, excluded=True)
 
     try:
