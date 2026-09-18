@@ -185,7 +185,7 @@ The payload follows the **send-a-copy contract v0.2**: v0.1 plus `channel: "voic
 - Auth: `X-API-Key` header
 - Limits: 1 MB, 500 turns, `metadata` ≤ 2 KB
 - Response: `202` with a receipt; `400` with field-level problems; `401`; `413`; `429` with `Retry-After`
-- Full text: [docs/send-a-copy-spec-v0.2.md](docs/send-a-copy-spec-v0.2.md)
+- Full text: [docs/send-a-copy-spec-v0.2.md](docs/send-a-copy-spec-v0.2.md). Contract v0.3 ([docs/send-a-copy-spec-v0.3.md](docs/send-a-copy-spec-v0.3.md)) adds optional `turns[].actor` and `conversation_id`; the forwarder will send it from v0.2.0.
 
 ## 9. Design notes
 
