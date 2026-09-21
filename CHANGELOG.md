@@ -2,6 +2,11 @@
 
 All notable changes to this project are recorded here. The format follows Keep a Changelog; versions follow semantic versioning.
 
+## [Unreleased]
+
+### Documentation
+- README: turning on analytics in every flow a contact can pass through is now a deployment step (section 3, step 2), not just a prerequisite. The stock transfer-to-queue flow has no analytics block, so without it the leg after an agent transfer is never analysed. Added a check that a test transfer produces two analysis files, and a troubleshooting entry for "I can see the bot's turns but not the human agent's".
+
 ## [0.2.0] - 2026-09-18
 
 Sends send-a-copy contract **v0.3**. Every valid v0.2 payload is also valid v0.3, so a receiver that accepts 0.3 needs no other change to keep working.

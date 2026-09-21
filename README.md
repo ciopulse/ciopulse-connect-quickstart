@@ -32,7 +32,7 @@ The survey lens is a Connect flow change, not code. Section 5 walks through it.
 
 | Requirement | Why | Where |
 |---|---|---|
-| **Conversational analytics enabled on the contact flow, and on the transfer flow** | Transcripts only exist when the `Set recording and analytics behavior` block has *analytics* on. Recording alone produces audio, not text. A contact transferred by an agent runs your *queue transfer* flow, so that flow needs the block too or the human leg is never analysed. | Flow designer, and the instance-level analytics setting |
+| **Conversational analytics enabled on every flow a contact can pass through** | Transcripts only exist when a `Set recording and analytics behavior` block has *analytics* on. Recording alone produces audio, not text. A contact transferred by an agent runs your *transfer to queue* flow, so that flow needs the block too; see section 3, step 2. | Flow designer, and the instance-level analytics setting |
 | **`redaction_option` = `RedactedOnly`** (recommended) or `RedactedAndOriginal` | The forwarder reads the `…/Redacted/` prefix and nothing else. With `RedactedOnly`, an unredacted transcript is never written anywhere. | `Set contact attributes` block, or a Lambda in the flow, before analytics starts |
 | **The analytics S3 bucket name** | The event rules and the IAM policy are scoped to it. | Connect console → your instance → Data storage → *Chat transcripts* / *Call recordings* |
 | **A ciopulse API key in Secrets Manager** | The Lambda reads the key at runtime. The template takes the secret's **ARN**, never the key. | `aws secretsmanager create-secret --name ciopulse/api-key --secret-string '<key>'` |
@@ -68,7 +68,9 @@ The guided deploy asks for these values. Five have no default and you must suppl
 | `AgentParticipantRoles` | | Participant roles mapped to the AI agent. Default `AGENT,BOT,CUSTOM_BOT,SYSTEM` (flow and bot messages carry `SYSTEM`) |
 | `AlarmSnsTopicArn` | | Optional SNS topic for the failed-delivery alarm |
 
-**One manual step after the stack is up.** The forwarder listens for S3 "Object Created" events through EventBridge, and an existing bucket does not emit those until you switch them on. In the S3 console open the bucket → *Properties* → *Amazon EventBridge* → **On**. Or, if the bucket has **no other** event notifications configured:
+Two steps after the stack is up.
+
+**Step 1: let the bucket emit events.** The forwarder listens for S3 "Object Created" events through EventBridge, and an existing bucket does not emit those until you switch them on. In the S3 console open the bucket → *Properties* → *Amazon EventBridge* → **On**. Or, if the bucket has **no other** event notifications configured:
 
 ```bash
 aws s3api put-bucket-notification-configuration \
@@ -78,7 +80,9 @@ aws s3api put-bucket-notification-configuration \
 
 That CLI call replaces the bucket's whole notification configuration, so use the console toggle if other notifications already exist. The stack's `EnableEventBridgeCommand` output repeats the command with your bucket name filled in.
 
-Then make one test call or chat and wait for analytics to finish. On a live chat the transcript reached the receiver about three minutes after the chat ended, and check the `Forwarded` metric or the Lambda log group. A `202` in the log means ciopulse accepted the transcript.
+**Step 2: turn on analytics in every flow a contact can pass through.** Contact Lens is switched on per flow, by a *Set recording and analytics behavior* block, not once for the whole instance. Your inbound flow is not enough. When an agent transfers a contact to a queue or through a quick connect, Connect starts a new contact that runs your *transfer to queue* flow, and the stock one has no such block. Without it the transferred part of the conversation is never analysed, and ciopulse sees only what happened before the handoff: the bot and the first agent, but not the agent the customer was passed to. Add the block to every transfer-to-queue and transfer-to-agent flow your quick connects and flows route into, with the same settings as your inbound flow: analytics **on**, redaction **on**, output **Redacted only**.
+
+**Check it.** Make one test call or chat and wait for analytics to finish; on a live chat the transcript reached the receiver about three minutes after the chat ended. A `Forwarded` count of 1 in CloudWatch, or a `202` in the Lambda log group, means ciopulse accepted it. Then run one test **transfer**: have an agent answer, transfer the contact through a quick connect, and exchange a few messages after the transfer. Two analysis files should appear under the `Analysis/…/Redacted/` prefix, with **different** contact IDs at the start of their file names. If only one appears, a flow on the transfer path is missing the block.
 
 ## 4. What gets sent, and what never leaves your account
 
@@ -137,7 +141,8 @@ Each processed object writes one JSON log line. Look at `status`, `reason` and `
 
 | Symptom | Likely cause |
 |---|---|
-| Nothing happens after a call | EventBridge is not enabled on the bucket (section 3), or analytics is not enabled on the flow, or the object landed outside the key patterns. Check the bucket for `…/Analysis/Voice/Redacted/…` files |
+| I can see the bot's turns but not the human agent's, or a conversation seems to stop at the handoff | The contact was transferred into a flow without a *Set recording and analytics behavior* block, so the transferred leg was never analysed. Add the block to that flow (section 3, step 2) and run a test transfer: you should see two analysis files with different contact IDs |
+| Nothing happens after a call | EventBridge is not enabled on the bucket (section 3, step 1), or analytics is not enabled on the flow, or the object landed outside the key patterns. Check the bucket for `…/Analysis/Voice/Redacted/…` files |
 | `status: skipped`, `reason: not_redacted` | Only unredacted files are being written. Set `redaction_option` |
 | `status: skipped`, `reason: key_pattern` | Your bucket layout differs from the default patterns. Adjust `VoiceKeyPattern`/`ChatKeyPattern` (section 9) |
 | `http_status: 401` | The secret does not hold a valid ciopulse key |
