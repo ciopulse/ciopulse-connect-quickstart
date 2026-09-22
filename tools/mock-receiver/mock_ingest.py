@@ -14,12 +14,12 @@ and must never see a real conversation.
     GET  /received                        what it has accepted, newest first
     GET  /health
 
-Auth: X-API-Key: <key>   or   HTTP Basic (portal code : key)
+Auth: X-API-Key: <key>
 
 It enforces the contract strictly and returns field-level errors, so a 202 here
 means the payload really is conformant — that is the whole point of it.
 """
-import argparse, base64, json, re, uuid, sys
+import argparse, json, re, uuid, sys
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -33,6 +33,9 @@ CHANNELS = {"chat", "voice"}
 OUTCOMES = {"contained", "escalated", "abandoned", "unknown"}
 ISO = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}:\d{2}|Z)$")
 
+# "seen" is keyed on session_id alone because this mock serves a single sender. The real endpoint keys
+# idempotency on (tenant, session_id): two customers can legitimately send the same session_id. Do not
+# port this single-key logic into the production endpoint.
 STATE = {"key": "testkey123", "log": Path("received.jsonl"), "seen": {}}
 
 
@@ -136,6 +139,12 @@ def validate(p):
             for i, x in enumerate(ev):
                 if not isinstance(x, dict) or "type" not in x:
                     bad(f"events[{i}]", "each event needs a type")
+                    continue
+                if x["type"] == "escalation_to_human" and "ts" not in x:
+                    bad(f"events[{i}].ts", "escalation_to_human requires ts — the bot/human turn split "
+                                           "falls back to this timestamp when turns[].actor is absent")
+                elif "ts" in x and not iso(x["ts"]):
+                    bad(f"events[{i}].ts", "must be ISO 8601 with timezone")
 
     return e
 
@@ -155,16 +164,7 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(b)
 
     def _authed(self):
-        if self.headers.get("X-API-Key") == STATE["key"]:
-            return True
-        a = self.headers.get("Authorization", "")
-        if a.startswith("Basic "):
-            try:
-                _, _, pw = base64.b64decode(a[6:]).decode().partition(":")
-                return pw == STATE["key"]
-            except Exception:
-                return False
-        return False
+        return self.headers.get("X-API-Key") == STATE["key"]
 
     def do_GET(self):
         if self.path == "/health":
@@ -182,7 +182,7 @@ class H(BaseHTTPRequestHandler):
                                     "hint": "POST /api/v5/ai-agent/transcripts"})
         if not self._authed():
             return self._send(401, {"error": "unauthorized",
-                                    "hint": "send X-API-Key, or HTTP Basic with the key as the password"})
+                                    "hint": "send X-API-Key"})
 
         n = int(self.headers.get("Content-Length") or 0)
         if n > MAX_BYTES:
