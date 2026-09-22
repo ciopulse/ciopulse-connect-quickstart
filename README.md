@@ -190,7 +190,7 @@ The payload follows the **send-a-copy contract v0.3**: v0.2 plus optional `turns
 - Endpoint: `POST https://app.cio-pulse.com/api/v5/ai-agent/transcripts`
 - Auth: `X-API-Key` header
 - Limits: 1 MB, 500 turns, `metadata` ≤ 2 KB
-- Response: `202` with a receipt; `400` with field-level problems; `401`; `413`; `429` with `Retry-After`
+- Response: `202` with a receipt; `400` with field-level problems; `401`; `413`. Rate limiting is not currently applied; the forwarder still retries any `429` with backoff
 - Full text: [docs/send-a-copy-spec-v0.3.md](docs/send-a-copy-spec-v0.3.md). The previous version stays at [docs/send-a-copy-spec-v0.2.md](docs/send-a-copy-spec-v0.2.md).
 
 ## 9. Design notes

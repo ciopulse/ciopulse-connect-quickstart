@@ -372,3 +372,55 @@ def test_mock_rejects_bad_v03_fields(aws, env, mock_ingest):
         assert exc.code == 400
         fields = {p["field"] for p in json.loads(exc.read())["problems"]}
         assert fields == {"conversation_id", "turns[0].actor"}
+
+
+# ----------------------------------------------------------------------------- mock receiver: v4 corrections
+
+def _post_to_mock(url, body, headers):
+    import urllib.request, urllib.error
+    req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", **headers})
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return resp.status, json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read())
+
+
+def _valid_payload(**extra):
+    p = {"contract_version": "0.3", "session_id": "s-v4", "agent": {"id": "a", "version": "1"},
+         "started_at": "2026-09-22T00:00:00+00:00", "ended_at": "2026-09-22T00:01:00+00:00",
+         "turns": [{"role": "user", "text": "hi", "ts": "2026-09-22T00:00:01+00:00"}]}
+    p.update(extra)
+    return p
+
+
+def test_mock_rejects_http_basic(mock_ingest):
+    import base64
+    basic = "Basic " + base64.b64encode(b"portal:test-key-123").decode()
+    status, body = _post_to_mock(mock_ingest["url"], _valid_payload(), {"Authorization": basic})
+    assert status == 401 and body["hint"] == "send X-API-Key"
+    status, _ = _post_to_mock(mock_ingest["url"], _valid_payload(), {"X-API-Key": "test-key-123"})
+    assert status == 202
+
+
+def test_mock_requires_ts_on_escalation_event(mock_ingest):
+    key = {"X-API-Key": "test-key-123"}
+    status, body = _post_to_mock(mock_ingest["url"], _valid_payload(events=[{"type": "escalation_to_human"}]), key)
+    assert status == 400
+    [problem] = body["problems"]
+    assert problem["field"] == "events[0].ts" and "turns[].actor is absent" in problem["error"]
+    status, body = _post_to_mock(mock_ingest["url"],
+                                 _valid_payload(events=[{"type": "escalation_to_human", "ts": "yesterday"}]), key)
+    assert status == 400 and body["problems"][0]["field"] == "events[0].ts"
+    status, _ = _post_to_mock(mock_ingest["url"],
+                              _valid_payload(events=[{"type": "escalation_to_human", "ts": "2026-09-22T00:00:30+00:00"}]), key)
+    assert status == 202
+
+
+def test_mock_other_events_still_need_only_type(mock_ingest):
+    key = {"X-API-Key": "test-key-123"}
+    status, _ = _post_to_mock(mock_ingest["url"], _valid_payload(events=[{"type": "custom_marker"}]), key)
+    assert status == 202
+    status, body = _post_to_mock(mock_ingest["url"], _valid_payload(events=[{"type": "custom_marker", "ts": "soon"}]), key)
+    assert status == 400 and body["problems"][0]["field"] == "events[0].ts"   # a ts, if given, must be ISO

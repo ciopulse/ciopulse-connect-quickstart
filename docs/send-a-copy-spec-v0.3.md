@@ -4,6 +4,7 @@
 
 **Status:** Decided · 18 Sep 2026 · Contact: ciopulse
 **Changes from v0.2:** two optional fields, both decided 18 Sep 2026. `turns[].actor` says whether an `agent` turn came from a bot or a person. `conversation_id` joins the sessions of one conversation that a platform split across a transfer, and is the value the survey `tid` carries. Every valid v0.2 payload is a valid v0.3 payload; receivers accept 0.2 and 0.3 side by side for the life of v0.x.
+**Corrections, 21 Sep 2026:** removed HTTP Basic and the `429` response, neither of which any ciopulse endpoint implements; clarified that voice requires `"0.2"` or later. Documentation only — no payload valid under v0.3 becomes invalid.
 **Changes from v0.1 (v0.2):** `channel` accepts `"voice"`; optional `platform_signals` block.
 
 ---
@@ -15,7 +16,7 @@ POST https://app.cio-pulse.com/api/v5/ai-agent/transcripts
 Content-Type: application/json
 ```
 
-**Auth** (either): HTTP Basic — username = portal code, password = API key · or `X-API-Key` header. Both supplied by ciopulse at onboarding. HTTPS only.
+**Auth:** `X-API-Key` header, supplied by ciopulse at onboarding. HTTPS only.
 
 ## Payload
 
@@ -29,7 +30,7 @@ Content-Type: application/json
 | `started_at`, `ended_at` | ✔ | ISO 8601 with timezone |
 | `turns[]` | ✔ | Ordered, chronological. Each: `role` (`"user"` \| `"agent"` \| `"system"`), `text`, `ts` (ISO 8601 with timezone), and optionally `actor` (below) |
 | `turns[].actor` | – | **New in v0.3.** `"bot"` when the turn was produced by an automated agent, `"human"` when by a person; omit when unknown. Only meaningful when `role` is `"agent"`. Receivers that need the split and find it absent treat turns before the first `escalation_to_human` event as bot and later ones as human |
-| `channel` | – | `"chat"` (default) or **`"voice"`** (new in v0.2). Voice means the turns are text produced by speech-to-text; ciopulse reads them exactly as chat. Voice requires `contract_version` `"0.2"`. Audio is never sent |
+| `channel` | – | `"chat"` (default) or **`"voice"`** (new in v0.2). Voice means the turns are text produced by speech-to-text; ciopulse reads them exactly as chat. Voice requires `contract_version` `"0.2"` or later. Audio is never sent |
 | `outcome` | – | Your call: `"contained"` \| `"escalated"` \| `"abandoned"` \| `"unknown"` |
 | `events[]` | – | e.g. `{"type": "escalation_to_human", "ts": "…"}` |
 | `platform_signals` | – | **New in v0.2.** Measurements your platform already computed about this conversation. See below. Omit the block entirely if you have none |
@@ -99,7 +100,7 @@ Unknown fields inside `platform_signals` are ignored, not rejected.
 
 - **Response:** `202 Accepted` + a receipt ID. Validation is synchronous (auth, schema, size); everything else is asynchronous. Typical response < 500 ms.
 - **Duplicates / retries:** re-POSTing the same `session_id` within 30 days replaces the earlier submission — retrying is always safe.
-- **Limits:** payload ≤ 1 MB · ≤ 500 turns · `metadata` ≤ 2 KB · per-key rate limit. Errors: `400` (field-level detail), `401`, `413`, `429` (with `Retry-After`).
+- **Limits:** payload ≤ 1 MB · ≤ 500 turns · `metadata` ≤ 2 KB. Errors: `400` (field-level detail), `401`, `413`. Rate limiting is not currently applied; senders should still treat any `429` as retryable with backoff.
 - **When to send:** once, when the conversation ends. Retry on `5xx` with backoff if convenient — or don't; a missed transcript is acceptable by design.
 - **Voice transcripts** read differently from chat (disfluencies, transcription errors). Send them as they are; do not clean them up. ciopulse's reader accounts for speech-to-text artefacts.
 
