@@ -7,6 +7,15 @@ All notable changes to this project are recorded here. The format follows Keep a
 ### Documentation
 - README: turning on analytics in every flow a contact can pass through is now a deployment step (section 3, step 2), not just a prerequisite. The stock transfer-to-queue flow has no analytics block, so without it the leg after an agent transfer is never analysed. Added a check that a test transfer produces two analysis files, and a troubleshooting entry for "I can see the bot's turns but not the human agent's".
 
+### Changed
+- Spec v0.3: `escalation_to_human` events are now documented as requiring a
+  valid ISO 8601 `ts`, matching the mock receiver. Unlike the other v0.3
+  corrections this is a tightening — a payload omitting that timestamp was
+  valid before and is not now. The Connect forwarder has always sent it, and
+  there are no external senders yet, so nothing in flight is affected.
+- Mock receiver: `escalation_to_human` events now require a valid ISO `ts`,
+  which the bot/human turn-split fallback depends on.
+
 ### Fixed
 - Spec v0.3: removed HTTP Basic auth and the `429` response from the documented
   contract. Neither is implemented by any ciopulse endpoint; the forwarder has
@@ -16,8 +25,6 @@ All notable changes to this project are recorded here. The format follows Keep a
   "0.2" or later, not exactly "0.2".
 - Mock receiver: no longer accepts HTTP Basic, so it can no longer certify a
   payload the real endpoint would reject.
-- Mock receiver: `escalation_to_human` events now require a valid ISO `ts`,
-  which the bot/human turn-split fallback depends on.
 - README: the contract reference no longer lists a `429` response, matching the spec.
 
 ## [0.2.0] - 2026-09-18
