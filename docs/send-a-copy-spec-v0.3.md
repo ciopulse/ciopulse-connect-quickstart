@@ -5,6 +5,7 @@
 **Status:** Decided · 18 Sep 2026 · Contact: ciopulse
 **Changes from v0.2:** two optional fields, both decided 18 Sep 2026. `turns[].actor` says whether an `agent` turn came from a bot or a person. `conversation_id` joins the sessions of one conversation that a platform split across a transfer, and is the value the survey `tid` carries. Every valid v0.2 payload is a valid v0.3 payload; receivers accept 0.2 and 0.3 side by side for the life of v0.x.
 **Corrections, 21 Sep 2026:** removed HTTP Basic and the `429` response, neither of which any ciopulse endpoint implements; clarified that voice requires `"0.2"` or later. Documentation only — no payload valid under v0.3 becomes invalid.
+**Correction, 23 Sep 2026:** documented the ISO `ts` requirement on `escalation_to_human`, which the reference implementation enforces. This is a tightening: a payload that omitted that timestamp was accepted before 22 Sep and is rejected now.
 **Changes from v0.1 (v0.2):** `channel` accepts `"voice"`; optional `platform_signals` block.
 
 ---
@@ -29,10 +30,10 @@ Content-Type: application/json
 | `agent.version` | ✔ | Release/version string (scorecards are per-version) |
 | `started_at`, `ended_at` | ✔ | ISO 8601 with timezone |
 | `turns[]` | ✔ | Ordered, chronological. Each: `role` (`"user"` \| `"agent"` \| `"system"`), `text`, `ts` (ISO 8601 with timezone), and optionally `actor` (below) |
-| `turns[].actor` | – | **New in v0.3.** `"bot"` when the turn was produced by an automated agent, `"human"` when by a person; omit when unknown. Only meaningful when `role` is `"agent"`. Receivers that need the split and find it absent treat turns before the first `escalation_to_human` event as bot and later ones as human |
+| `turns[].actor` | – | **New in v0.3.** `"bot"` when the turn was produced by an automated agent, `"human"` when by a person; omit when unknown. Only meaningful when `role` is `"agent"`. Receivers that need the split and find it absent treat turns before the first `escalation_to_human` event as bot and later ones as human. Because that fallback has no other anchor, an `escalation_to_human` event without a valid ISO 8601 `ts` is rejected with a field-level `400`. |
 | `channel` | – | `"chat"` (default) or **`"voice"`** (new in v0.2). Voice means the turns are text produced by speech-to-text; ciopulse reads them exactly as chat. Voice requires `contract_version` `"0.2"` or later. Audio is never sent |
 | `outcome` | – | Your call: `"contained"` \| `"escalated"` \| `"abandoned"` \| `"unknown"` |
-| `events[]` | – | e.g. `{"type": "escalation_to_human", "ts": "…"}` |
+| `events[]` | – | e.g. `{"type": "escalation_to_human", "ts": "…"}`. An `escalation_to_human` event **requires** a valid ISO 8601 `ts` with timezone — the bot/human turn split falls back to it when `turns[].actor` is absent. Other event types need only `type`; any `ts` present must be ISO 8601 with timezone. |
 | `platform_signals` | – | **New in v0.2.** Measurements your platform already computed about this conversation. See below. Omit the block entirely if you have none |
 | `metadata` | – | Free-form object, ≤ 2 KB (queue name, deployment context, …) |
 | `exclude` | – | `true` = ciopulse must not store or analyse this conversation. It is counted and discarded. A sender MAY send a single placeholder turn (`role: "system"`, `text: "excluded by sender"`) instead of the transcript when `exclude` is `true`; receivers never analyse that text |
